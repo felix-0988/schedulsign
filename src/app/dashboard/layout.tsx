@@ -5,7 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
 import { redirect } from "next/navigation"
-import { Calendar, Clock, Settings, Link2, Webhook, LayoutDashboard, LogOut, FileSignature, Users, Menu, X } from "lucide-react"
+import { Calendar, Clock, Settings, Webhook, LayoutDashboard, LogOut, Users, Menu, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const navItems = [

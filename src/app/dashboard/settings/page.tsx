@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { Save, ExternalLink, Trash2, Star, Tag } from "lucide-react"
-import { PLANS } from "@/lib/stripe"
 
 const MAX_CALENDARS = 6
 

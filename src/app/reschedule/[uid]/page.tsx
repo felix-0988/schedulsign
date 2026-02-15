@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
-import Link from "next/link"
 import { format } from "date-fns"
 import { toZonedTime } from "date-fns-tz"
 import { ChevronLeft, ChevronRight, Check } from "lucide-react"
@@ -14,7 +13,7 @@ export default function ReschedulePage() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [slots, setSlots] = useState<any[]>([])
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
-  const [booking, setBooking] = useState<any>(null)
+  const [booking] = useState<any>(null)
   const [done, setDone] = useState(false)
   const [loading, setLoading] = useState(false)
   const timezone = typeof window !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC"

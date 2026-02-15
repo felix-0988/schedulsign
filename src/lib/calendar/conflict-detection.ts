@@ -70,7 +70,7 @@ export async function getConflictingEvents(
   userId: string,
   startDate: Date,
   endDate: Date,
-  eventTypeId?: string
+  _eventTypeId?: string
 ): Promise<CalendarEvent[]> {
   const cacheKey = `${userId}:${startDate.toISOString()}:${endDate.toISOString()}`
   const cached = eventCache.get(cacheKey)

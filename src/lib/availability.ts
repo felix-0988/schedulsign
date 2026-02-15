@@ -1,4 +1,4 @@
-import { addMinutes, eachDayOfInterval, format, isAfter, isBefore, parseISO, setHours, setMinutes, startOfDay } from "date-fns"
+import { addMinutes, eachDayOfInterval, format, isAfter, isBefore, setHours, setMinutes, startOfDay } from "date-fns"
 import { toZonedTime, fromZonedTime } from "date-fns-tz"
 import prisma from "./prisma"
 import { getConflictingEvents } from "./calendar/conflict-detection"
@@ -17,7 +17,7 @@ interface AvailabilityOptions {
 }
 
 export async function getAvailableSlots(options: AvailabilityOptions): Promise<TimeSlot[]> {
-  const { userId, eventTypeId, startDate, endDate, timezone } = options
+  const { userId, eventTypeId, startDate, endDate, timezone: _timezone } = options
 
   // Get user and event type
   const [user, eventType, availabilityRules] = await Promise.all([

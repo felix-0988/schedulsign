@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Calendar, FileSignature, Check, ArrowRight, Zap, Shield, Globe } from "lucide-react"
+import { Calendar, FileSignature, Check, ArrowRight, Zap } from "lucide-react"
 
 export default function LandingPage() {
   return (

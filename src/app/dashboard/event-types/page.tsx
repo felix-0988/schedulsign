@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react"
 import Link from "next/link"
-import { Plus, Copy, ExternalLink, MoreVertical, Trash2, Calendar, Search, X } from "lucide-react"
+import { Plus, Copy, ExternalLink, Trash2, Calendar, Search, X } from "lucide-react"
 import { formatDuration } from "@/lib/utils"
 
 function useDebounce(value: string, delay: number) {

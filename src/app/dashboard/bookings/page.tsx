@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react"
 import Link from "next/link"
 import { format } from "date-fns"
-import { Calendar, Clock, ChevronLeft, ChevronRight, Search, X } from "lucide-react"
+import { Clock, ChevronLeft, ChevronRight, Search, X } from "lucide-react"
 
 const PAGE_SIZE = 10
 

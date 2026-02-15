@@ -250,13 +250,13 @@ export default function BookingWidget({ eventType, host }: BookingWidgetProps) {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">Name *</label>
-                  <input type="text" value={name} onChange={e => { setName(e.target.value); setErrors(prev => { const { name, ...rest } = prev; return rest }) }}
+                  <input type="text" value={name} onChange={e => { setName(e.target.value); setErrors(prev => { const { name: _name, ...rest } = prev; return rest }) }}
                     className={`w-full border rounded-lg px-3 py-2.5 md:py-2 text-base focus:ring-2 outline-none ${errors.name ? "border-red-500 focus:ring-red-500" : "focus:ring-blue-500"}`} required />
                   {errors.name && <p className="text-sm text-red-600 mt-1">{errors.name}</p>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Email *</label>
-                  <input type="email" value={email} onChange={e => { setEmail(e.target.value); setErrors(prev => { const { email, ...rest } = prev; return rest }) }}
+                  <input type="email" value={email} onChange={e => { setEmail(e.target.value); setErrors(prev => { const { email: _email, ...rest } = prev; return rest }) }}
                     className={`w-full border rounded-lg px-3 py-2.5 md:py-2 text-base focus:ring-2 outline-none ${errors.email ? "border-red-500 focus:ring-red-500" : "focus:ring-blue-500"}`} required />
                   {errors.email && <p className="text-sm text-red-600 mt-1">{errors.email}</p>}
                 </div>
@@ -269,7 +269,7 @@ export default function BookingWidget({ eventType, host }: BookingWidgetProps) {
                 {/* Custom questions */}
                 {eventType.questions.map(q => {
                   const errorKey = `question_${q.id}`
-                  const clearError = () => setErrors(prev => { const { [errorKey]: _, ...rest } = prev; return rest })
+                  const clearError = () => setErrors(prev => { const { [errorKey]: _unused, ...rest } = prev; return rest })
                   return (
                     <div key={q.id}>
                       <label className="block text-sm font-medium mb-1">
