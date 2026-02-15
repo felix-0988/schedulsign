@@ -67,7 +67,21 @@ jobs:
         run: |
           cd infrastructure/terraform
           terraform init -backend-config="bucket=scheulsign-terraform-state-${{ env.DEV_ACCOUNT_ID }}"
-          DB_URL=$(terraform output -raw database_url)
+          DB_URL_RAW=$(terraform output -raw database_url)
+
+          # URL-encode the password (handles special characters like [, ], #, !)
+          DB_URL=$(node -e "
+            const url = process.argv[1];
+            const match = url.match(/postgresql:\/\/([^:]+):([^@]+)@(.+)/);
+            if (match) {
+              const [_, user, password, rest] = match;
+              const encodedPassword = encodeURIComponent(password);
+              console.log(\`postgresql://\${user}:\${encodedPassword}@\${rest}\`);
+            } else {
+              console.log(url);
+            }
+          " "$DB_URL_RAW")
+
           echo "::add-mask::$DB_URL"
           echo "database_url=$DB_URL" >> $GITHUB_OUTPUT
 
@@ -129,7 +143,21 @@ jobs:
         run: |
           cd infrastructure/terraform
           terraform init -backend-config="bucket=scheulsign-terraform-state-${{ env.QA_ACCOUNT_ID }}"
-          DB_URL=$(terraform output -raw database_url)
+          DB_URL_RAW=$(terraform output -raw database_url)
+
+          # URL-encode the password
+          DB_URL=$(node -e "
+            const url = process.argv[1];
+            const match = url.match(/postgresql:\/\/([^:]+):([^@]+)@(.+)/);
+            if (match) {
+              const [_, user, password, rest] = match;
+              const encodedPassword = encodeURIComponent(password);
+              console.log(\`postgresql://\${user}:\${encodedPassword}@\${rest}\`);
+            } else {
+              console.log(url);
+            }
+          " "$DB_URL_RAW")
+
           echo "::add-mask::$DB_URL"
           echo "database_url=$DB_URL" >> $GITHUB_OUTPUT
 
@@ -189,7 +217,21 @@ jobs:
         run: |
           cd infrastructure/terraform
           terraform init -backend-config="bucket=scheulsign-terraform-state-${{ env.PROD_ACCOUNT_ID }}"
-          DB_URL=$(terraform output -raw database_url)
+          DB_URL_RAW=$(terraform output -raw database_url)
+
+          # URL-encode the password
+          DB_URL=$(node -e "
+            const url = process.argv[1];
+            const match = url.match(/postgresql:\/\/([^:]+):([^@]+)@(.+)/);
+            if (match) {
+              const [_, user, password, rest] = match;
+              const encodedPassword = encodeURIComponent(password);
+              console.log(\`postgresql://\${user}:\${encodedPassword}@\${rest}\`);
+            } else {
+              console.log(url);
+            }
+          " "$DB_URL_RAW")
+
           echo "::add-mask::$DB_URL"
           echo "database_url=$DB_URL" >> $GITHUB_OUTPUT
 
