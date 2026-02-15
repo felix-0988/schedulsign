@@ -16,12 +16,12 @@ terraform {
     }
   }
 
-  # TODO: Configure S3 backend for each environment
-  # backend "s3" {
-  #   bucket = "schedulsign-terraform-state"
-  #   key    = "schedulsign.tfstate"
-  #   region = "us-east-1"
-  # }
+  # S3 backend - bucket name passed at init time via -backend-config
+  # Usage: terraform init -backend-config="bucket=scheulsign-terraform-state-252967153935"
+  backend "s3" {
+    key    = "scheulsign-app/terraform.tfstate"
+    region = "us-east-1"
+  }
 }
 
 provider "aws" {
@@ -51,7 +51,7 @@ variable "aws_region" {
 variable "github_repository" {
   description = "GitHub repository (owner/repo)"
   type        = string
-  default     = "zenithventure/schedulsign"
+  default     = "felix-0988/schedulsign"
 }
 
 variable "github_branch" {

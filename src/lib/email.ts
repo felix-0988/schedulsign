@@ -1,12 +1,12 @@
 import nodemailer from "nodemailer"
 
 const transporter = nodemailer.createTransport({
-  host: `email-smtp.${process.env.AWS_SES_REGION}.amazonaws.com`,
+  host: `email-smtp.${process.env.SES_REGION}.amazonaws.com`,
   port: 465,
   secure: true,
   auth: {
-    user: process.env.AWS_SES_ACCESS_KEY,
-    pass: process.env.AWS_SES_SECRET_KEY,
+    user: process.env.SES_ACCESS_KEY,
+    pass: process.env.SES_SECRET_KEY,
   },
 })
 

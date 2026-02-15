@@ -86,9 +86,10 @@ resource "aws_amplify_app" "main" {
   EOT
 
   # Environment variables (non-sensitive)
+  # Note: NEXT_PUBLIC_APP_URL is set after app creation to avoid circular dependency
   environment_variables = {
     NEXT_PUBLIC_APP_NAME = "SchedulSign"
-    NEXT_PUBLIC_APP_URL  = var.environment == "prod" && var.domain_name != null ? "https://${var.domain_name}" : "https://main.${aws_amplify_app.main.default_domain}"
+    NEXT_PUBLIC_APP_URL  = var.domain_name != null ? "https://${var.domain_name}" : "https://temp-placeholder.amplifyapp.com"
   }
 
   # Enable auto branch creation
@@ -149,11 +150,11 @@ resource "aws_amplify_branch" "main" {
     STRIPE_PRO_MONTHLY_PRICE_ID    = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
     STRIPE_PRO_YEARLY_PRICE_ID     = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
 
-    # AWS SES
-    AWS_SES_REGION     = var.aws_region
-    AWS_SES_ACCESS_KEY = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
-    AWS_SES_SECRET_KEY = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
-    EMAIL_FROM         = "noreply@schedulsign.com"
+    # SES (Note: Cannot use AWS_ prefix in Amplify)
+    SES_REGION     = var.aws_region
+    SES_ACCESS_KEY = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
+    SES_SECRET_KEY = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
+    EMAIL_FROM     = "noreply@schedulsign.com"
 
     # Twilio
     TWILIO_ACCOUNT_SID  = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
