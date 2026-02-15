@@ -1,0 +1,25 @@
+# SchedulSign Terraform Variables
+# ================================
+# Copy this to terraform.tfvars and fill in your values
+
+# Environment (dev, qa, prod)
+environment = "dev"
+
+# AWS Region
+aws_region = "us-east-1"
+
+# GitHub Repository
+github_repository = "zenithventure/schedulsign"
+github_branch     = "main"
+
+# GitHub Access Token (create at https://github.com/settings/tokens)
+# Required scopes: repo, admin:repo_hook
+github_access_token = "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# Custom Domain (optional - only for prod)
+# domain_name = "app.schedulsign.com"
+
+# Database Instance Class
+# Free tier: db.t4g.micro
+# Prod: db.t4g.small or larger
+db_instance_class = "db.t4g.micro"

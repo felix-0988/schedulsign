@@ -90,12 +90,40 @@ Webhook payloads include `X-Webhook-Signature` header (HMAC-SHA256).
 
 ## Deployment
 
-### Railway
+### AWS (Production)
+
+SchedulSign uses a multi-account AWS architecture with separate Dev/QA/Prod environments:
+
+**Infrastructure:**
+- **AWS Amplify** - Next.js SSR hosting with auto-scaling
+- **RDS PostgreSQL** - Managed database in private VPC
+- **Secrets Manager** - Secure credential storage
+- **CloudWatch** - Logging and monitoring
+
+**Deployment Strategy:**
 ```bash
-railway up
+# Deploy infrastructure (per environment)
+cd infrastructure/terraform
+terraform init
+terraform apply
+
+# Amplify automatically deploys on:
+# - Push to main → Dev
+# - Tag v1.2.3-qa → QA
+# - Tag v1.2.3 → Prod (requires approval)
 ```
 
-### Docker
+See [infrastructure/README.md](infrastructure/README.md) for complete deployment guide.
+
+**Account Structure:**
+| Environment | Deploy Trigger | Account |
+|-------------|----------------|---------|
+| Dev | Push to `main` | SchedulSign-Dev |
+| QA | Tag `v*-qa` | SchedulSign-QA |
+| Prod | Tag `v*` | SchedulSign-Prod |
+
+### Local Development with Docker
+
 ```bash
 docker build -t schedulsign .
 docker run -p 3000:3000 --env-file .env schedulsign
