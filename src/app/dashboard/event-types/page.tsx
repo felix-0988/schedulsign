@@ -16,6 +16,7 @@ function useDebounce(value: string, delay: number) {
 
 export default function EventTypesPage() {
   const [eventTypes, setEventTypes] = useState<any[]>([])
+  const [user, setUser] = useState<any>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState({ title: "", duration: 30, description: "", location: "GOOGLE_MEET" })
   const [loading, setLoading] = useState(false)
@@ -25,6 +26,7 @@ export default function EventTypesPage() {
 
   useEffect(() => {
     fetch("/api/event-types").then(r => r.json()).then(setEventTypes)
+    fetch("/api/user").then(r => r.json()).then(setUser)
   }, [])
 
   async function handleCreate(e: React.FormEvent) {
@@ -178,7 +180,7 @@ export default function EventTypesPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={() => copyLink(et.slug, "")} className="p-2 hover:bg-gray-100 rounded-lg" title="Copy link">
+              <button onClick={() => copyLink(et.slug, user?.slug || "")} className="p-2 hover:bg-gray-100 rounded-lg" title="Copy link">
                 <Copy className="w-4 h-4 text-gray-500" />
               </button>
               <Link href={`/dashboard/event-types/${et.id}`} className="p-2 hover:bg-gray-100 rounded-lg" title="Edit">
