@@ -16,6 +16,13 @@ function TimeSlotSkeleton() {
   )
 }
 
+interface ConfirmedBooking {
+  id: string
+  uid: string
+  startTime: string
+  meetingUrl?: string | null
+}
+
 interface BookingWidgetProps {
   eventType: {
     id: string
@@ -52,7 +59,7 @@ export default function BookingWidget({ eventType, host }: BookingWidgetProps) {
   const [timezone, setTimezone] = useState("")
   const [loadingSlots, setLoadingSlots] = useState(false)
   const [booking, setBooking] = useState(false)
-  const [confirmedBooking, setConfirmedBooking] = useState<any>(null)
+  const [confirmedBooking, setConfirmedBooking] = useState<ConfirmedBooking | null>(null)
 
   // Form
   const [name, setName] = useState("")

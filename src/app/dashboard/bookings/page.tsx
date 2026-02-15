@@ -7,6 +7,17 @@ import { Clock, ChevronLeft, ChevronRight, Search, X } from "lucide-react"
 
 const PAGE_SIZE = 10
 
+interface Booking {
+  id: string
+  title: string
+  startTime: string
+  endTime: string
+  bookerName: string
+  bookerEmail: string
+  meetingUrl?: string | null
+  status: string
+}
+
 function useDebounce(value: string, delay: number) {
   const [debounced, setDebounced] = useState(value)
   useEffect(() => {
@@ -17,7 +28,7 @@ function useDebounce(value: string, delay: number) {
 }
 
 export default function BookingsPage() {
-  const [bookings, setBookings] = useState<any[]>([])
+  const [bookings, setBookings] = useState<Booking[]>([])
   const [filter, setFilter] = useState<string>("upcoming")
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState("")
