@@ -6,6 +6,16 @@ import { toZonedTime } from "date-fns-tz"
 import { ChevronLeft, ChevronRight, Clock, Globe, Check } from "lucide-react"
 import Link from "next/link"
 
+function TimeSlotSkeleton() {
+  return (
+    <div className="space-y-2">
+      {[...Array(5)].map((_, i) => (
+        <div key={i} className="h-12 md:h-10 bg-gray-200 animate-pulse rounded-lg" />
+      ))}
+    </div>
+  )
+}
+
 interface BookingWidgetProps {
   eventType: {
     id: string
@@ -49,20 +59,34 @@ export default function BookingWidget({ eventType, host }: BookingWidgetProps) {
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
   const [answers, setAnswers] = useState<Record<string, string>>({})
+  const [errors, setErrors] = useState<Record<string, string>>({})
+
+  const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 
   useEffect(() => {
     setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone)
   }, [])
 
+  const [slotError, setSlotError] = useState(false)
+
   useEffect(() => {
     if (!selectedDate || !timezone) return
     setLoadingSlots(true)
+    setSlotError(false)
     const dateStr = format(selectedDate, "yyyy-MM-dd")
     fetch(`/api/slots?eventTypeId=${eventType.id}&date=${dateStr}&timezone=${timezone}`)
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error("Failed to load slots")
+        return r.json()
+      })
       .then(data => {
         setSlots(Array.isArray(data) ? data : [])
         setLoadingSlots(false)
+      })
+      .catch(() => {
+        setSlots([])
+        setLoadingSlots(false)
+        setSlotError(true)
       })
   }, [selectedDate, timezone, eventType.id])
 
@@ -74,46 +98,82 @@ export default function BookingWidget({ eventType, host }: BookingWidgetProps) {
   const calDays = eachDayOfInterval({ start: calStart, end: calEnd })
 
   async function handleBook() {
-    setBooking(true)
-    const res = await fetch("/api/bookings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        eventTypeId: eventType.id,
-        startTime: selectedSlot,
-        bookerName: name,
-        bookerEmail: email,
-        bookerTimezone: timezone,
-        bookerPhone: phone || undefined,
-        answers: Object.keys(answers).length ? answers : undefined,
-      }),
+    const newErrors: Record<string, string> = {}
+    if (!name.trim()) newErrors.name = "Name is required"
+    if (!email.trim()) newErrors.email = "Email is required"
+    else if (!validateEmail(email)) newErrors.email = "Please enter a valid email"
+    eventType.questions.forEach(q => {
+      if (q.required && !answers[q.id]?.trim()) {
+        newErrors[`question_${q.id}`] = `${q.label} is required`
+      }
     })
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors)
+      return
+    }
+    setErrors({})
+    setBooking(true)
 
-    if (res.ok) {
+    try {
+      const res = await fetch("/api/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventTypeId: eventType.id,
+          startTime: selectedSlot,
+          bookerName: name,
+          bookerEmail: email,
+          bookerTimezone: timezone,
+          bookerPhone: phone || undefined,
+          answers: Object.keys(answers).length ? answers : undefined,
+        }),
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        setErrors({ submit: errorData.message || "Booking failed. Please try again." })
+        return
+      }
+
       const data = await res.json()
       setConfirmedBooking(data)
 
       // If payment required, redirect
       if (eventType.requirePayment && eventType.price) {
-        const payRes = await fetch("/api/stripe/booking-payment", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ bookingId: data.id }),
-        })
-        const { url } = await payRes.json()
-        if (url) window.location.href = url
+        try {
+          const payRes = await fetch("/api/stripe/booking-payment", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ bookingId: data.id }),
+          })
+          if (!payRes.ok) {
+            setErrors({ submit: "Payment setup failed. Please contact support." })
+            return
+          }
+          const { url } = await payRes.json()
+          if (url) {
+            window.location.href = url
+          } else {
+            setErrors({ submit: "Payment redirect unavailable. Please contact support." })
+          }
+        } catch {
+          setErrors({ submit: "Payment setup failed. Please check your connection and try again." })
+        }
         return
       }
 
       setStep("confirmed")
+    } catch {
+      setErrors({ submit: "Network error. Please check your connection and try again." })
+    } finally {
+      setBooking(false)
     }
-    setBooking(false)
   }
 
   if (step === "confirmed" && confirmedBooking) {
     const startDate = new Date(confirmedBooking.startTime)
     return (
-      <div className="max-w-md mx-auto bg-white rounded-2xl shadow-lg p-8 text-center">
+      <div className="max-w-md mx-auto bg-white rounded-2xl shadow-lg p-5 md:p-8 text-center">
         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <Check className="w-8 h-8 text-green-600" />
         </div>
@@ -126,14 +186,14 @@ export default function BookingWidget({ eventType, host }: BookingWidgetProps) {
           <p className="text-sm text-gray-600">👤 {host.name}</p>
           {confirmedBooking.meetingUrl && (
             <a href={confirmedBooking.meetingUrl} target="_blank"
-              className="inline-block mt-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">
+              className="inline-block mt-2 bg-blue-600 text-white px-4 py-3 md:py-2 rounded-lg text-sm hover:bg-blue-700">
               Join Meeting
             </a>
           )}
         </div>
         <div className="mt-4 flex gap-4 justify-center text-sm">
-          <Link href={`/reschedule/${confirmedBooking.uid}`} className="text-blue-600 hover:underline">Reschedule</Link>
-          <Link href={`/cancel/${confirmedBooking.uid}`} className="text-red-600 hover:underline">Cancel</Link>
+          <Link href={`/reschedule/${confirmedBooking.uid}`} className="text-blue-600 hover:underline py-2 md:py-0">Reschedule</Link>
+          <Link href={`/cancel/${confirmedBooking.uid}`} className="text-red-600 hover:underline py-2 md:py-0">Cancel</Link>
         </div>
         <p className="text-xs text-gray-400 mt-6">Powered by <Link href="/" className="text-blue-600">SchedulSign</Link></p>
       </div>
@@ -144,7 +204,7 @@ export default function BookingWidget({ eventType, host }: BookingWidgetProps) {
     <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-lg overflow-hidden">
       <div className="md:flex">
         {/* Left: event info */}
-        <div className="md:w-72 p-6 border-b md:border-b-0 md:border-r">
+        <div className="md:w-72 p-4 md:p-6 border-b md:border-b-0 md:border-r">
           {host.brandLogo ? (
             <img src={host.brandLogo} alt={host.name} className="w-10 h-10 rounded-full mb-3" />
           ) : (
@@ -167,7 +227,7 @@ export default function BookingWidget({ eventType, host }: BookingWidgetProps) {
           {/* Timezone selector */}
           <div className="mt-4">
             <select value={timezone} onChange={e => setTimezone(e.target.value)}
-              className="w-full text-xs border rounded px-2 py-1 text-gray-600">
+              className="w-full text-xs border rounded px-2 py-2.5 md:py-1 text-gray-600">
               {typeof Intl !== "undefined" && Intl.supportedValuesOf("timeZone").map(tz => (
                 <option key={tz} value={tz}>{tz}</option>
               ))}
@@ -176,11 +236,11 @@ export default function BookingWidget({ eventType, host }: BookingWidgetProps) {
         </div>
 
         {/* Right: calendar + slots or form */}
-        <div className="flex-1 p-6">
+        <div className="flex-1 p-4 md:p-6">
           {step === "form" ? (
             /* Booking form */
             <div>
-              <button onClick={() => setStep("calendar")} className="text-sm text-blue-600 hover:underline mb-4">
+              <button onClick={() => setStep("calendar")} className="text-sm text-blue-600 hover:underline mb-4 min-h-[44px] md:min-h-0 flex items-center">
                 ← Back
               </button>
               <h2 className="font-semibold mb-1">Enter your details</h2>
@@ -190,49 +250,62 @@ export default function BookingWidget({ eventType, host }: BookingWidgetProps) {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">Name *</label>
-                  <input type="text" value={name} onChange={e => setName(e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none" required />
+                  <input type="text" value={name} onChange={e => { setName(e.target.value); setErrors(prev => { const { name, ...rest } = prev; return rest }) }}
+                    className={`w-full border rounded-lg px-3 py-2.5 md:py-2 text-base focus:ring-2 outline-none ${errors.name ? "border-red-500 focus:ring-red-500" : "focus:ring-blue-500"}`} required />
+                  {errors.name && <p className="text-sm text-red-600 mt-1">{errors.name}</p>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Email *</label>
-                  <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none" required />
+                  <input type="email" value={email} onChange={e => { setEmail(e.target.value); setErrors(prev => { const { email, ...rest } = prev; return rest }) }}
+                    className={`w-full border rounded-lg px-3 py-2.5 md:py-2 text-base focus:ring-2 outline-none ${errors.email ? "border-red-500 focus:ring-red-500" : "focus:ring-blue-500"}`} required />
+                  {errors.email && <p className="text-sm text-red-600 mt-1">{errors.email}</p>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Phone</label>
                   <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none" />
+                    className="w-full border rounded-lg px-3 py-2.5 md:py-2 text-base focus:ring-2 focus:ring-blue-500 outline-none" />
                 </div>
 
                 {/* Custom questions */}
-                {eventType.questions.map(q => (
-                  <div key={q.id}>
-                    <label className="block text-sm font-medium mb-1">
-                      {q.label} {q.required && "*"}
-                    </label>
-                    {q.type === "TEXTAREA" ? (
-                      <textarea value={answers[q.id] || ""} onChange={e => setAnswers({ ...answers, [q.id]: e.target.value })}
-                        className="w-full border rounded-lg px-3 py-2 h-20 resize-none" required={q.required} />
-                    ) : q.type === "SELECT" ? (
-                      <select value={answers[q.id] || ""} onChange={e => setAnswers({ ...answers, [q.id]: e.target.value })}
-                        className="w-full border rounded-lg px-3 py-2" required={q.required}>
-                        <option value="">Select...</option>
-                        {q.options.map(o => <option key={o} value={o}>{o}</option>)}
-                      </select>
-                    ) : q.type === "CHECKBOX" ? (
-                      <input type="checkbox" checked={answers[q.id] === "true"}
-                        onChange={e => setAnswers({ ...answers, [q.id]: e.target.checked ? "true" : "false" })}
-                        className="rounded" />
-                    ) : (
-                      <input type={q.type === "EMAIL" ? "email" : q.type === "PHONE" ? "tel" : "text"}
-                        value={answers[q.id] || ""} onChange={e => setAnswers({ ...answers, [q.id]: e.target.value })}
-                        className="w-full border rounded-lg px-3 py-2" required={q.required} />
-                    )}
-                  </div>
-                ))}
+                {eventType.questions.map(q => {
+                  const errorKey = `question_${q.id}`
+                  const clearError = () => setErrors(prev => { const { [errorKey]: _, ...rest } = prev; return rest })
+                  return (
+                    <div key={q.id}>
+                      <label className="block text-sm font-medium mb-1">
+                        {q.label} {q.required && "*"}
+                      </label>
+                      {q.type === "TEXTAREA" ? (
+                        <textarea value={answers[q.id] || ""} onChange={e => { setAnswers({ ...answers, [q.id]: e.target.value }); clearError() }}
+                          className={`w-full border rounded-lg px-3 py-2.5 md:py-2 text-base h-24 md:h-20 resize-none ${errors[errorKey] ? "border-red-500" : ""}`} required={q.required} />
+                      ) : q.type === "SELECT" ? (
+                        <select value={answers[q.id] || ""} onChange={e => { setAnswers({ ...answers, [q.id]: e.target.value }); clearError() }}
+                          className={`w-full border rounded-lg px-3 py-2.5 md:py-2 text-base ${errors[errorKey] ? "border-red-500" : ""}`} required={q.required}>
+                          <option value="">Select...</option>
+                          {q.options.map(o => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      ) : q.type === "CHECKBOX" ? (
+                        <input type="checkbox" checked={answers[q.id] === "true"}
+                          onChange={e => { setAnswers({ ...answers, [q.id]: e.target.checked ? "true" : "false" }); clearError() }}
+                          className="rounded w-5 h-5" />
+                      ) : (
+                        <input type={q.type === "EMAIL" ? "email" : q.type === "PHONE" ? "tel" : "text"}
+                          value={answers[q.id] || ""} onChange={e => { setAnswers({ ...answers, [q.id]: e.target.value }); clearError() }}
+                          className={`w-full border rounded-lg px-3 py-2.5 md:py-2 text-base ${errors[errorKey] ? "border-red-500" : ""}`} required={q.required} />
+                      )}
+                      {errors[errorKey] && <p className="text-sm text-red-600 mt-1">{errors[errorKey]}</p>}
+                    </div>
+                  )
+                })}
 
-                <button onClick={handleBook} disabled={booking || !name || !email}
-                  className="w-full py-2.5 rounded-lg text-white font-medium disabled:opacity-50 transition"
+                {errors.submit && (
+                  <div className="bg-red-50 border border-red-200 text-red-600 text-sm p-3 rounded-lg">
+                    {errors.submit}
+                  </div>
+                )}
+
+                <button onClick={handleBook} disabled={booking}
+                  className="w-full py-3 md:py-2.5 rounded-lg text-white font-medium disabled:opacity-50 transition text-base"
                   style={{ backgroundColor: host.brandColor }}>
                   {booking ? "Booking..." : eventType.requirePayment ? `Book & Pay ${eventType.currency.toUpperCase()} ${eventType.price}` : "Confirm Booking"}
                 </button>
@@ -246,11 +319,11 @@ export default function BookingWidget({ eventType, host }: BookingWidgetProps) {
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="font-semibold">{format(currentMonth, "MMMM yyyy")}</h2>
                   <div className="flex gap-1">
-                    <button onClick={() => setCurrentMonth(addMonths(currentMonth, -1))} className="p-1 hover:bg-gray-100 rounded">
-                      <ChevronLeft className="w-4 h-4" />
+                    <button onClick={() => setCurrentMonth(addMonths(currentMonth, -1))} className="p-2 md:p-1 hover:bg-gray-100 rounded min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center">
+                      <ChevronLeft className="w-5 h-5 md:w-4 md:h-4" />
                     </button>
-                    <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-1 hover:bg-gray-100 rounded">
-                      <ChevronRight className="w-4 h-4" />
+                    <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-2 md:p-1 hover:bg-gray-100 rounded min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center">
+                      <ChevronRight className="w-5 h-5 md:w-4 md:h-4" />
                     </button>
                   </div>
                 </div>
@@ -268,7 +341,7 @@ export default function BookingWidget({ eventType, host }: BookingWidgetProps) {
                         key={day.toISOString()}
                         onClick={() => { setSelectedDate(day); setSelectedSlot(null) }}
                         disabled={isPast || !isCurrentMonth}
-                        className={`h-10 rounded-lg text-sm transition ${
+                        className={`h-11 md:h-10 rounded-lg text-sm transition ${
                           isSelected
                             ? "text-white font-bold"
                             : isPast || !isCurrentMonth
@@ -286,11 +359,21 @@ export default function BookingWidget({ eventType, host }: BookingWidgetProps) {
 
               {/* Time slots */}
               {selectedDate && (
-                <div className="md:w-44 mt-4 md:mt-0">
+                <div className="w-full md:w-44 mt-4 md:mt-0">
                   <h3 className="font-medium text-sm mb-3">{format(selectedDate, "EEE, MMM d")}</h3>
                   <div className="space-y-2 max-h-80 overflow-y-auto">
                     {loadingSlots ? (
-                      <p className="text-sm text-gray-400 animate-pulse">Loading...</p>
+                      <TimeSlotSkeleton />
+                    ) : slotError ? (
+                      <div className="text-center">
+                        <p className="text-sm text-red-600 mb-2">Failed to load times</p>
+                        <button
+                          onClick={() => { setSelectedDate(new Date(selectedDate!)) }}
+                          className="text-sm text-blue-600 hover:underline min-h-[44px] md:min-h-0"
+                        >
+                          Try again
+                        </button>
+                      </div>
                     ) : slots.length === 0 ? (
                       <p className="text-sm text-gray-500">No available times</p>
                     ) : slots.map(slot => {
@@ -306,7 +389,7 @@ export default function BookingWidget({ eventType, host }: BookingWidgetProps) {
                               setSelectedSlot(slot.start)
                             }
                           }}
-                          className={`w-full text-sm py-2 px-3 rounded-lg border transition text-center ${
+                          className={`w-full text-sm py-3 md:py-2 px-3 rounded-lg border transition text-center ${
                             isSelected ? "text-white border-transparent" : "hover:border-blue-300"
                           }`}
                           style={isSelected ? { backgroundColor: host.brandColor } : undefined}

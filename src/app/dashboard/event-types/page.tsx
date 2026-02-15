@@ -1,15 +1,27 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import Link from "next/link"
-import { Plus, Copy, ExternalLink, MoreVertical, Trash2 } from "lucide-react"
+import { Plus, Copy, ExternalLink, MoreVertical, Trash2, Calendar, Search, X } from "lucide-react"
 import { formatDuration } from "@/lib/utils"
+
+function useDebounce(value: string, delay: number) {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(timer)
+  }, [value, delay])
+  return debounced
+}
 
 export default function EventTypesPage() {
   const [eventTypes, setEventTypes] = useState<any[]>([])
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState({ title: "", duration: 30, description: "", location: "GOOGLE_MEET" })
   const [loading, setLoading] = useState(false)
+  const [search, setSearch] = useState("")
+  const debouncedSearch = useDebounce(search, 300)
+  const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetch("/api/event-types").then(r => r.json()).then(setEventTypes)
@@ -42,6 +54,16 @@ export default function EventTypesPage() {
     navigator.clipboard.writeText(`${window.location.origin}/${userSlug}/${slug}`)
   }
 
+  const filteredEventTypes = eventTypes.filter(et => {
+    if (!debouncedSearch) return true
+    const q = debouncedSearch.toLowerCase()
+    return (
+      et.title?.toLowerCase().includes(q) ||
+      et.description?.toLowerCase().includes(q) ||
+      et.location?.toLowerCase().replace("_", " ").includes(q)
+    )
+  })
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -53,6 +75,30 @@ export default function EventTypesPage() {
           <Plus className="w-4 h-4" /> New Event Type
         </button>
       </div>
+
+      {/* Search */}
+      {eventTypes.length > 0 && (
+        <div className="relative mb-6">
+          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            ref={searchRef}
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search event types..."
+            className="w-full border rounded-lg pl-9 pr-8 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+          />
+          {search && (
+            <button
+              onClick={() => { setSearch(""); searchRef.current?.focus() }}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-gray-100 transition"
+              aria-label="Clear search"
+            >
+              <X className="w-3.5 h-3.5 text-gray-400" />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Create modal */}
       {showCreate && (
@@ -108,11 +154,19 @@ export default function EventTypesPage() {
       <div className="space-y-3">
         {eventTypes.length === 0 ? (
           <div className="bg-white border rounded-xl p-12 text-center">
+            <Calendar className="w-10 h-10 text-gray-300 mx-auto mb-3" />
             <p className="text-gray-500 mb-4">No event types yet</p>
             <button onClick={() => setShowCreate(true)}
               className="text-blue-600 hover:underline">Create your first event type</button>
           </div>
-        ) : eventTypes.map((et) => (
+        ) : filteredEventTypes.length === 0 ? (
+          <div className="bg-white border rounded-xl p-8 text-center">
+            <Search className="w-8 h-8 text-gray-300 mx-auto mb-3" />
+            <p className="text-gray-500">No event types matching &ldquo;{debouncedSearch}&rdquo;</p>
+            <button onClick={() => { setSearch(""); searchRef.current?.focus() }}
+              className="text-blue-600 text-sm hover:underline mt-2 inline-block">Clear search</button>
+          </div>
+        ) : filteredEventTypes.map((et) => (
           <div key={et.id} className="bg-white border rounded-xl p-5 flex items-center justify-between hover:shadow-sm transition">
             <div className="flex items-center gap-4">
               <div className="w-2 h-12 rounded-full" style={{ backgroundColor: et.color }} />

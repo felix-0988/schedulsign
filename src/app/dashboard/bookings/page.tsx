@@ -1,26 +1,81 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
+import Link from "next/link"
 import { format } from "date-fns"
+import { Calendar, Clock, ChevronLeft, ChevronRight, Search, X } from "lucide-react"
+
+const PAGE_SIZE = 10
+
+function useDebounce(value: string, delay: number) {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(timer)
+  }, [value, delay])
+  return debounced
+}
 
 export default function BookingsPage() {
   const [bookings, setBookings] = useState<any[]>([])
   const [filter, setFilter] = useState<string>("upcoming")
+  const [page, setPage] = useState(1)
+  const [search, setSearch] = useState("")
+  const debouncedSearch = useDebounce(search, 300)
+  const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetch("/api/bookings").then(r => r.json()).then(setBookings)
   }, [])
+
+  // Reset to page 1 when filter or search changes
+  useEffect(() => {
+    setPage(1)
+  }, [filter, debouncedSearch])
 
   const filtered = bookings.filter(b => {
     if (filter === "upcoming") return b.status === "CONFIRMED" && new Date(b.startTime) > new Date()
     if (filter === "past") return b.status === "COMPLETED" || new Date(b.startTime) < new Date()
     if (filter === "cancelled") return b.status === "CANCELLED"
     return true
+  }).filter(b => {
+    if (!debouncedSearch) return true
+    const q = debouncedSearch.toLowerCase()
+    return (
+      b.title?.toLowerCase().includes(q) ||
+      b.bookerName?.toLowerCase().includes(q) ||
+      b.bookerEmail?.toLowerCase().includes(q)
+    )
   })
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   return (
     <div>
       <h1 className="text-2xl font-bold mb-6">Bookings</h1>
+
+      {/* Search */}
+      <div className="relative mb-4">
+        <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+        <input
+          ref={searchRef}
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search by name, email, or title..."
+          className="w-full border rounded-lg pl-9 pr-8 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+        />
+        {search && (
+          <button
+            onClick={() => { setSearch(""); searchRef.current?.focus() }}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-gray-100 transition"
+            aria-label="Clear search"
+          >
+            <X className="w-3.5 h-3.5 text-gray-400" />
+          </button>
+        )}
+      </div>
 
       <div className="flex gap-2 mb-6">
         {["upcoming", "past", "cancelled", "all"].map(f => (
@@ -33,8 +88,25 @@ export default function BookingsPage() {
 
       <div className="bg-white border rounded-xl divide-y">
         {filtered.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">No bookings found</div>
-        ) : filtered.map(b => (
+          <div className="p-12 text-center">
+            {debouncedSearch ? (
+              <>
+                <Search className="w-8 h-8 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No bookings matching &ldquo;{debouncedSearch}&rdquo;</p>
+                <button onClick={() => { setSearch(""); searchRef.current?.focus() }}
+                  className="text-blue-600 text-sm hover:underline mt-2 inline-block">Clear search</button>
+              </>
+            ) : (
+              <>
+                <Clock className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500 mb-2">No {filter === "all" ? "" : filter + " "}bookings found</p>
+                <Link href="/dashboard/event-types" className="text-blue-600 text-sm hover:underline mt-2 inline-block">
+                  Create an event type to get started
+                </Link>
+              </>
+            )}
+          </div>
+        ) : paginated.map(b => (
           <div key={b.id} className="p-4 flex items-center justify-between">
             <div>
               <p className="font-medium">{b.title}</p>
@@ -55,6 +127,36 @@ export default function BookingsPage() {
           </div>
         ))}
       </div>
+
+      {/* Pagination */}
+      {filtered.length > PAGE_SIZE && (
+        <div className="flex items-center justify-between mt-4">
+          <p className="text-sm text-gray-500">
+            Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Previous
+            </button>
+            <span className="text-sm text-gray-600">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Next
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
