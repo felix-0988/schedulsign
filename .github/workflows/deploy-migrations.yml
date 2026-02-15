@@ -1,5 +1,28 @@
 name: Deploy Database Migrations
 
+# ==============================================================================
+# Lambda-Based Migration Strategy
+# ==============================================================================
+#
+# This workflow invokes AWS Lambda functions to run database migrations.
+# The Lambda approach is used because:
+#
+# ✅ Security: RDS databases are in private subnets (not internet-accessible)
+# ✅ VPC Access: Lambda runs inside the VPC and can reach the database
+# ✅ Credentials: Database passwords stored in AWS Secrets Manager
+# ✅ Auditing: All migration runs logged to CloudWatch
+# ✅ Notifications: SNS alerts sent on success/failure
+#
+# Lambda functions are deployed via Terraform:
+#   - infrastructure/terraform/lambda-migrations.tf
+#
+# To package and deploy Lambda manually:
+#   - ./scripts/package-lambda.sh
+#   - ./scripts/deploy-lambda.sh [dev|qa|prod]
+#   - ./scripts/invoke-migration.sh [dev|qa|prod]
+#
+# ==============================================================================
+
 on:
   # Trigger manually from GitHub UI
   workflow_dispatch:
@@ -39,72 +62,67 @@ jobs:
     environment: dev
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.6.0"
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ env.DEV_ACCOUNT_ID }}:role/GitHubActionsDeployRole
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Get database URL from Terraform output
-        id: db-url
+      - name: Invoke Lambda migration function
+        id: migrate
         run: |
-          cd infrastructure/terraform
-          terraform init -backend-config="bucket=scheulsign-terraform-state-${{ env.DEV_ACCOUNT_ID }}"
-          DB_URL_RAW=$(terraform output -raw database_url)
+          echo "🚀 Invoking migration Lambda for Dev environment..."
 
-          # URL-encode the password (handles special characters like [, ], #, !)
-          DB_URL=$(node -e "
-            const url = process.argv[1];
-            const match = url.match(/postgresql:\/\/([^:]+):([^@]+)@(.+)/);
-            if (match) {
-              const [_, user, password, rest] = match;
-              const encodedPassword = encodeURIComponent(password);
-              console.log(\`postgresql://\${user}:\${encodedPassword}@\${rest}\`);
-            } else {
-              console.log(url);
-            }
-          " "$DB_URL_RAW")
+          # Invoke Lambda and capture response
+          RESPONSE=$(aws lambda invoke \
+            --function-name schedulsign-migrations-dev \
+            --region us-east-1 \
+            --log-type Tail \
+            --payload '{}' \
+            /dev/stdout 2>&1)
 
-          echo "::add-mask::$DB_URL"
-          echo "database_url=$DB_URL" >> $GITHUB_OUTPUT
+          # Extract status code
+          STATUS_CODE=$(echo "$RESPONSE" | grep -o '"StatusCode": [0-9]*' | grep -o '[0-9]*' || echo "unknown")
 
-      - name: Run Prisma migrations
-        env:
-          DATABASE_URL: ${{ steps.db-url.outputs.database_url }}
-        run: |
-          echo "🚀 Deploying migrations to Dev..."
-          npx prisma migrate deploy
-          npx prisma generate
+          # Extract and decode logs
+          LOG_RESULT=$(echo "$RESPONSE" | grep -o '"LogResult": "[^"]*"' | sed 's/"LogResult": "//' | sed 's/"$//' | base64 -d 2>/dev/null || echo "")
 
-      - name: Verify database connection
-        env:
-          DATABASE_URL: ${{ steps.db-url.outputs.database_url }}
-        run: npx prisma db execute --stdin <<< "SELECT version();"
+          echo "Status Code: $STATUS_CODE"
+          echo ""
+          echo "=== Lambda Logs ==="
+          echo "$LOG_RESULT"
+          echo "==================="
+
+          # Check for success
+          if [ "$STATUS_CODE" == "200" ]; then
+            echo "✅ Migration completed successfully"
+            echo "success=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Migration failed with status code: $STATUS_CODE"
+            echo "success=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
 
       - name: Migration summary
+        if: always()
         run: |
-          echo "## Database Migrations Deployed to Dev" >> $GITHUB_STEP_SUMMARY
-          echo "**Account:** ${{ env.DEV_ACCOUNT_ID }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Database:** schedulsign (us-east-1)" >> $GITHUB_STEP_SUMMARY
+          echo "## Database Migrations - Dev Environment" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Migrations applied successfully" >> $GITHUB_STEP_SUMMARY
+          echo "**Account:** ${{ env.DEV_ACCOUNT_ID }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Lambda:** schedulsign-migrations-dev" >> $GITHUB_STEP_SUMMARY
+          echo "**Region:** ${{ env.AWS_REGION }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.migrate.outputs.success }}" == "true" ]; then
+            echo "✅ **Status:** Migrations applied successfully" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The Lambda function ran database migrations securely from within the VPC." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Status:** Migration failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Check CloudWatch Logs for details:" >> $GITHUB_STEP_SUMMARY
+            echo "https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#logsV2:log-groups/log-group//aws/lambda/schedulsign-migrations-dev" >> $GITHUB_STEP_SUMMARY
+          fi
 
   # ==========================================================================
   # Migrate QA - Manual dispatch only
@@ -115,70 +133,67 @@ jobs:
     environment: qa
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.6.0"
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ env.QA_ACCOUNT_ID }}:role/GitHubActionsDeployRole
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Get database URL from Terraform output
-        id: db-url
+      - name: Invoke Lambda migration function
+        id: migrate
         run: |
-          cd infrastructure/terraform
-          terraform init -backend-config="bucket=scheulsign-terraform-state-${{ env.QA_ACCOUNT_ID }}"
-          DB_URL_RAW=$(terraform output -raw database_url)
+          echo "🚀 Invoking migration Lambda for QA environment..."
 
-          # URL-encode the password
-          DB_URL=$(node -e "
-            const url = process.argv[1];
-            const match = url.match(/postgresql:\/\/([^:]+):([^@]+)@(.+)/);
-            if (match) {
-              const [_, user, password, rest] = match;
-              const encodedPassword = encodeURIComponent(password);
-              console.log(\`postgresql://\${user}:\${encodedPassword}@\${rest}\`);
-            } else {
-              console.log(url);
-            }
-          " "$DB_URL_RAW")
+          # Invoke Lambda and capture response
+          RESPONSE=$(aws lambda invoke \
+            --function-name schedulsign-migrations-qa \
+            --region us-east-1 \
+            --log-type Tail \
+            --payload '{}' \
+            /dev/stdout 2>&1)
 
-          echo "::add-mask::$DB_URL"
-          echo "database_url=$DB_URL" >> $GITHUB_OUTPUT
+          # Extract status code
+          STATUS_CODE=$(echo "$RESPONSE" | grep -o '"StatusCode": [0-9]*' | grep -o '[0-9]*' || echo "unknown")
 
-      - name: Run Prisma migrations
-        env:
-          DATABASE_URL: ${{ steps.db-url.outputs.database_url }}
-        run: |
-          echo "🚀 Deploying migrations to QA..."
-          npx prisma migrate deploy
-          npx prisma generate
+          # Extract and decode logs
+          LOG_RESULT=$(echo "$RESPONSE" | grep -o '"LogResult": "[^"]*"' | sed 's/"LogResult": "//' | sed 's/"$//' | base64 -d 2>/dev/null || echo "")
 
-      - name: Verify database connection
-        env:
-          DATABASE_URL: ${{ steps.db-url.outputs.database_url }}
-        run: npx prisma db execute --stdin <<< "SELECT version();"
+          echo "Status Code: $STATUS_CODE"
+          echo ""
+          echo "=== Lambda Logs ==="
+          echo "$LOG_RESULT"
+          echo "==================="
+
+          # Check for success
+          if [ "$STATUS_CODE" == "200" ]; then
+            echo "✅ Migration completed successfully"
+            echo "success=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Migration failed with status code: $STATUS_CODE"
+            echo "success=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
 
       - name: Migration summary
+        if: always()
         run: |
-          echo "## Database Migrations Deployed to QA" >> $GITHUB_STEP_SUMMARY
+          echo "## Database Migrations - QA Environment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Account:** ${{ env.QA_ACCOUNT_ID }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Database:** schedulsign (us-east-1)" >> $GITHUB_STEP_SUMMARY
+          echo "**Lambda:** schedulsign-migrations-qa" >> $GITHUB_STEP_SUMMARY
+          echo "**Region:** ${{ env.AWS_REGION }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.migrate.outputs.success }}" == "true" ]; then
+            echo "✅ **Status:** Migrations applied successfully" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The Lambda function ran database migrations securely from within the VPC." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Status:** Migration failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Check CloudWatch Logs for details:" >> $GITHUB_STEP_SUMMARY
+            echo "https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#logsV2:log-groups/log-group//aws/lambda/schedulsign-migrations-qa" >> $GITHUB_STEP_SUMMARY
+          fi
 
   # ==========================================================================
   # Migrate Prod - Manual dispatch only (requires approval)
@@ -186,72 +201,75 @@ jobs:
   migrate-prod:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod'
     runs-on: ubuntu-latest
-    environment: prod
+    environment: prod  # Requires manual approval in GitHub
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.6.0"
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ env.PROD_ACCOUNT_ID }}:role/GitHubActionsDeployRole
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Get database URL from Terraform output
-        id: db-url
+      - name: Invoke Lambda migration function
+        id: migrate
         run: |
-          cd infrastructure/terraform
-          terraform init -backend-config="bucket=scheulsign-terraform-state-${{ env.PROD_ACCOUNT_ID }}"
-          DB_URL_RAW=$(terraform output -raw database_url)
+          echo "🚀 Invoking migration Lambda for PRODUCTION environment..."
+          echo "⚠️  This will modify the production database"
 
-          # URL-encode the password
-          DB_URL=$(node -e "
-            const url = process.argv[1];
-            const match = url.match(/postgresql:\/\/([^:]+):([^@]+)@(.+)/);
-            if (match) {
-              const [_, user, password, rest] = match;
-              const encodedPassword = encodeURIComponent(password);
-              console.log(\`postgresql://\${user}:\${encodedPassword}@\${rest}\`);
-            } else {
-              console.log(url);
-            }
-          " "$DB_URL_RAW")
+          # Invoke Lambda and capture response
+          RESPONSE=$(aws lambda invoke \
+            --function-name schedulsign-migrations-prod \
+            --region us-east-1 \
+            --log-type Tail \
+            --payload '{}' \
+            /dev/stdout 2>&1)
 
-          echo "::add-mask::$DB_URL"
-          echo "database_url=$DB_URL" >> $GITHUB_OUTPUT
+          # Extract status code
+          STATUS_CODE=$(echo "$RESPONSE" | grep -o '"StatusCode": [0-9]*' | grep -o '[0-9]*' || echo "unknown")
 
-      - name: Run Prisma migrations
-        env:
-          DATABASE_URL: ${{ steps.db-url.outputs.database_url }}
-        run: |
-          echo "🚀 Deploying migrations to Production..."
-          npx prisma migrate deploy
-          npx prisma generate
+          # Extract and decode logs
+          LOG_RESULT=$(echo "$RESPONSE" | grep -o '"LogResult": "[^"]*"' | sed 's/"LogResult": "//' | sed 's/"$//' | base64 -d 2>/dev/null || echo "")
 
-      - name: Verify database connection
-        env:
-          DATABASE_URL: ${{ steps.db-url.outputs.database_url }}
-        run: npx prisma db execute --stdin <<< "SELECT version();"
+          echo "Status Code: $STATUS_CODE"
+          echo ""
+          echo "=== Lambda Logs ==="
+          echo "$LOG_RESULT"
+          echo "==================="
+
+          # Check for success
+          if [ "$STATUS_CODE" == "200" ]; then
+            echo "✅ Migration completed successfully"
+            echo "success=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Migration failed with status code: $STATUS_CODE"
+            echo "success=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
 
       - name: Migration summary
+        if: always()
         run: |
-          echo "## Database Migrations Deployed to Production" >> $GITHUB_STEP_SUMMARY
-          echo "**Account:** ${{ env.PROD_ACCOUNT_ID }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Database:** schedulsign (us-east-1)" >> $GITHUB_STEP_SUMMARY
+          echo "## Database Migrations - PRODUCTION Environment" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "⚠️ **Production deployment - verify application health**" >> $GITHUB_STEP_SUMMARY
+          echo "**Account:** ${{ env.PROD_ACCOUNT_ID }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Lambda:** schedulsign-migrations-prod" >> $GITHUB_STEP_SUMMARY
+          echo "**Region:** ${{ env.AWS_REGION }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.migrate.outputs.success }}" == "true" ]; then
+            echo "✅ **Status:** Migrations applied successfully" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ **PRODUCTION DEPLOYMENT** - Verify application health" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Next Steps:**" >> $GITHUB_STEP_SUMMARY
+            echo "1. Monitor application metrics" >> $GITHUB_STEP_SUMMARY
+            echo "2. Check error rates in CloudWatch" >> $GITHUB_STEP_SUMMARY
+            echo "3. Verify critical user flows" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Status:** Migration failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**CRITICAL:** Production migration failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Check CloudWatch Logs immediately:" >> $GITHUB_STEP_SUMMARY
+            echo "https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#logsV2:log-groups/log-group//aws/lambda/schedulsign-migrations-prod" >> $GITHUB_STEP_SUMMARY
+          fi

@@ -32,17 +32,33 @@ echo "📥 Installing dependencies..."
 cd "$BUILD_DIR"
 npm install --production --no-optional
 
-# Generate Prisma Client
+# Generate Prisma Client with all binary targets
 echo "🔧 Generating Prisma Client..."
 npx prisma generate
 
-# Create deployment package
-echo "🗜️  Creating ZIP package..."
-cd ..
-zip -r function.zip build/* -x "*.git*" -x "*node_modules/.cache*"
+# Download Linux binary for Lambda
+echo "🔄 Downloading Prisma schema-engine for Lambda..."
+# Extract commit hash from version string (format: 5.22.0-44.HASH)
+ENGINE_VERSION=$(node -p "require('./node_modules/@prisma/engines-version/package.json').version")
+ENGINE_HASH=$(echo "$ENGINE_VERSION" | sed 's/.*\.//')
+echo "Engine version: $ENGINE_VERSION"
+echo "Engine commit hash: $ENGINE_HASH"
 
-# Move to final location
-mv function.zip ../..
+curl -L -o /tmp/schema-engine-linux.gz \
+  "https://binaries.prisma.sh/all_commits/${ENGINE_HASH}/rhel-openssl-3.0.x/schema-engine.gz"
+
+gunzip -f /tmp/schema-engine-linux.gz
+mv /tmp/schema-engine-linux node_modules/@prisma/engines/schema-engine-rhel-openssl-3.0.x
+chmod +x node_modules/@prisma/engines/schema-engine-rhel-openssl-3.0.x
+
+echo "✓ Downloaded Linux schema-engine binary"
+ls -lh node_modules/@prisma/engines/schema-engine-rhel-openssl-3.0.x
+
+# Create deployment package (we're already in BUILD_DIR from npm install above)
+echo "🗜️  Creating ZIP package..."
+zip -r ../function.zip . -x "*.git*" -x "*node_modules/.cache*"
+
+# Go back to project root
 cd ../..
 
 # Cleanup

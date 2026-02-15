@@ -62,16 +62,13 @@ async function runMigrations(databaseUrl) {
     // Set DATABASE_URL environment variable
     process.env.DATABASE_URL = databaseUrl;
 
-    // Generate Prisma Client
-    console.log('Generating Prisma Client...');
-    execSync('npx prisma generate', {
-      stdio: 'inherit',
-      env: { ...process.env, DATABASE_URL: databaseUrl }
-    });
+    // Prisma Client is pre-generated during packaging with correct binary targets
+    // No need to run 'prisma generate' here
 
     // Deploy migrations
+    // Use direct path to prisma to avoid symlink issues in Lambda
     console.log('Deploying migrations...');
-    const output = execSync('npx prisma migrate deploy', {
+    const output = execSync('node node_modules/prisma/build/index.js migrate deploy', {
       encoding: 'utf-8',
       env: { ...process.env, DATABASE_URL: databaseUrl }
     });
