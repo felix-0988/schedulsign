@@ -45,6 +45,10 @@ export default function SettingsPage() {
     window.location.href = url
   }
 
+  async function connectGoogle() {
+    window.location.href = "/api/auth/google"
+  }
+
   async function connectOutlook() {
     window.location.href = "/api/auth/outlook"
   }
@@ -121,10 +125,18 @@ export default function SettingsPage() {
               <span className="text-xs text-green-600 font-medium">Connected ✓</span>
             </div>
           ))}
-          <button onClick={connectOutlook}
-            className="w-full border-2 border-dashed rounded-lg p-3 text-sm text-gray-600 hover:bg-gray-50 transition">
-            + Connect Outlook / Office 365
-          </button>
+          {!user.calendarConnections?.some((c: any) => c.provider === "GOOGLE") && (
+            <button onClick={connectGoogle}
+              className="w-full border-2 border-dashed rounded-lg p-3 text-sm text-gray-600 hover:bg-gray-50 transition">
+              + Connect Google Calendar
+            </button>
+          )}
+          {!user.calendarConnections?.some((c: any) => c.provider === "OUTLOOK") && (
+            <button onClick={connectOutlook}
+              className="w-full border-2 border-dashed rounded-lg p-3 text-sm text-gray-600 hover:bg-gray-50 transition">
+              + Connect Outlook / Office 365
+            </button>
+          )}
         </div>
       </div>
 
