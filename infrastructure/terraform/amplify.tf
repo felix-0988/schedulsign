@@ -64,7 +64,7 @@ resource "aws_amplify_app" "main" {
 
   access_token = var.github_access_token
 
-  # Build settings for Next.js
+  # Build settings for Next.js with Prisma migrations
   build_spec = <<-EOT
     version: 1
     frontend:
@@ -72,6 +72,8 @@ resource "aws_amplify_app" "main" {
         preBuild:
           commands:
             - npm ci
+            - npx prisma generate
+            - npx prisma migrate deploy
         build:
           commands:
             - npm run build
