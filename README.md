@@ -9,6 +9,7 @@ Schedule meetings & get documents signed — one platform, $5/mo.
 - ✅ Multiple event types (different durations, locations, custom questions)
 - ✅ Google Calendar OAuth + 2-way sync (avoid double-booking)
 - ✅ Outlook/Office 365 calendar sync (Microsoft Graph API)
+- ✅ Multi-calendar conflict detection — connect multiple calendars, prevent double-booking across all of them ([docs](docs/features/multi-calendar-support.md))
 - ✅ Availability engine — working hours, day-specific rules, buffer time, daily/weekly limits
 - ✅ Timezone auto-detection + display for bookers
 - ✅ Video conferencing — auto-generate Zoom & Google Meet links
@@ -78,6 +79,12 @@ All API requests require `Authorization: Bearer <user-id>` header.
 
 #### Bookings
 - `GET /api/v1/bookings` — List bookings (supports `?status=`, `?from=`, `?to=` filters)
+
+#### Calendar Connections
+- `PATCH /api/calendar-connections/:id` — Update connection settings (label, checkConflicts, isPrimary)
+- `DELETE /api/calendar-connections/:id` — Disconnect a calendar
+
+See [Multi-Calendar Support](docs/features/multi-calendar-support.md) for details.
 
 #### Webhooks
 
