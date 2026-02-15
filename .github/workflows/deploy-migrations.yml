@@ -1,0 +1,200 @@
+name: Deploy Database Migrations
+
+on:
+  # Trigger manually from GitHub UI
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        type: choice
+        options: [dev, qa, prod]
+
+  # Or trigger automatically when migrations change on main (dev only)
+  push:
+    branches: [main]
+    paths:
+      - 'prisma/migrations/**'
+      - 'prisma/schema.prisma'
+
+permissions:
+  id-token: write   # Required for OIDC
+  contents: read
+
+env:
+  DEV_ACCOUNT_ID: "252967153935"
+  QA_ACCOUNT_ID: "873595708276"
+  PROD_ACCOUNT_ID: "923935061349"
+  AWS_REGION: "us-east-1"
+
+jobs:
+  # ==========================================================================
+  # Migrate Dev - Automatic on schema changes or manual dispatch
+  # ==========================================================================
+  migrate-dev:
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev')
+    runs-on: ubuntu-latest
+    environment: dev
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.DEV_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get database URL from Terraform output
+        id: db-url
+        run: |
+          cd infrastructure/terraform
+          terraform init -backend-config="bucket=scheulsign-terraform-state-${{ env.DEV_ACCOUNT_ID }}"
+          DB_URL=$(terraform output -raw database_url)
+          echo "::add-mask::$DB_URL"
+          echo "database_url=$DB_URL" >> $GITHUB_OUTPUT
+
+      - name: Run Prisma migrations
+        env:
+          DATABASE_URL: ${{ steps.db-url.outputs.database_url }}
+        run: |
+          echo "🚀 Deploying migrations to Dev..."
+          npx prisma migrate deploy
+          npx prisma generate
+
+      - name: Verify database connection
+        env:
+          DATABASE_URL: ${{ steps.db-url.outputs.database_url }}
+        run: npx prisma db execute --stdin <<< "SELECT version();"
+
+      - name: Migration summary
+        run: |
+          echo "## Database Migrations Deployed to Dev" >> $GITHUB_STEP_SUMMARY
+          echo "**Account:** ${{ env.DEV_ACCOUNT_ID }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Database:** schedulsign (us-east-1)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Migrations applied successfully" >> $GITHUB_STEP_SUMMARY
+
+  # ==========================================================================
+  # Migrate QA - Manual dispatch only
+  # ==========================================================================
+  migrate-qa:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'qa'
+    runs-on: ubuntu-latest
+    environment: qa
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.QA_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get database URL from Terraform output
+        id: db-url
+        run: |
+          cd infrastructure/terraform
+          terraform init -backend-config="bucket=scheulsign-terraform-state-${{ env.QA_ACCOUNT_ID }}"
+          DB_URL=$(terraform output -raw database_url)
+          echo "::add-mask::$DB_URL"
+          echo "database_url=$DB_URL" >> $GITHUB_OUTPUT
+
+      - name: Run Prisma migrations
+        env:
+          DATABASE_URL: ${{ steps.db-url.outputs.database_url }}
+        run: |
+          echo "🚀 Deploying migrations to QA..."
+          npx prisma migrate deploy
+          npx prisma generate
+
+      - name: Verify database connection
+        env:
+          DATABASE_URL: ${{ steps.db-url.outputs.database_url }}
+        run: npx prisma db execute --stdin <<< "SELECT version();"
+
+      - name: Migration summary
+        run: |
+          echo "## Database Migrations Deployed to QA" >> $GITHUB_STEP_SUMMARY
+          echo "**Account:** ${{ env.QA_ACCOUNT_ID }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Database:** schedulsign (us-east-1)" >> $GITHUB_STEP_SUMMARY
+
+  # ==========================================================================
+  # Migrate Prod - Manual dispatch only (requires approval)
+  # ==========================================================================
+  migrate-prod:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod'
+    runs-on: ubuntu-latest
+    environment: prod
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.PROD_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get database URL from Terraform output
+        id: db-url
+        run: |
+          cd infrastructure/terraform
+          terraform init -backend-config="bucket=scheulsign-terraform-state-${{ env.PROD_ACCOUNT_ID }}"
+          DB_URL=$(terraform output -raw database_url)
+          echo "::add-mask::$DB_URL"
+          echo "database_url=$DB_URL" >> $GITHUB_OUTPUT
+
+      - name: Run Prisma migrations
+        env:
+          DATABASE_URL: ${{ steps.db-url.outputs.database_url }}
+        run: |
+          echo "🚀 Deploying migrations to Production..."
+          npx prisma migrate deploy
+          npx prisma generate
+
+      - name: Verify database connection
+        env:
+          DATABASE_URL: ${{ steps.db-url.outputs.database_url }}
+        run: npx prisma db execute --stdin <<< "SELECT version();"
+
+      - name: Migration summary
+        run: |
+          echo "## Database Migrations Deployed to Production" >> $GITHUB_STEP_SUMMARY
+          echo "**Account:** ${{ env.PROD_ACCOUNT_ID }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Database:** schedulsign (us-east-1)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ **Production deployment - verify application health**" >> $GITHUB_STEP_SUMMARY
