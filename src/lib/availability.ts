@@ -1,0 +1,151 @@
+import { addMinutes, eachDayOfInterval, format, isAfter, isBefore, parseISO, setHours, setMinutes, startOfDay } from "date-fns"
+import { toZonedTime, fromZonedTime } from "date-fns-tz"
+import prisma from "./prisma"
+import { getGoogleBusyTimes } from "./calendar/google"
+import { getOutlookBusyTimes } from "./calendar/outlook"
+
+interface TimeSlot {
+  start: Date
+  end: Date
+}
+
+interface AvailabilityOptions {
+  userId: string
+  eventTypeId: string
+  startDate: Date
+  endDate: Date
+  timezone: string
+}
+
+export async function getAvailableSlots(options: AvailabilityOptions): Promise<TimeSlot[]> {
+  const { userId, eventTypeId, startDate, endDate, timezone } = options
+
+  // Get user and event type
+  const [user, eventType, availabilityRules] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId } }),
+    prisma.eventType.findUnique({ where: { id: eventTypeId } }),
+    prisma.availability.findMany({ where: { userId, enabled: true } }),
+  ])
+
+  if (!user || !eventType) return []
+
+  const duration = eventType.duration
+  const bufferBefore = eventType.bufferBefore
+  const bufferAfter = eventType.bufferAfter
+  const minNotice = eventType.minNotice
+  const now = new Date()
+  const earliestBooking = addMinutes(now, minNotice)
+
+  // Get busy times from calendars and existing bookings
+  const [googleBusy, outlookBusy, existingBookings] = await Promise.all([
+    getGoogleBusyTimes(userId, startDate, endDate),
+    getOutlookBusyTimes(userId, startDate, endDate),
+    prisma.booking.findMany({
+      where: {
+        userId,
+        status: { in: ["CONFIRMED", "PENDING"] },
+        startTime: { gte: startDate },
+        endTime: { lte: endDate },
+      },
+      select: { startTime: true, endTime: true },
+    }),
+  ])
+
+  const busySlots: TimeSlot[] = [
+    ...googleBusy,
+    ...outlookBusy,
+    ...existingBookings.map((b) => ({ start: b.startTime, end: b.endTime })),
+  ]
+
+  // Check daily/weekly limits
+  const dailyBookingCounts = new Map<string, number>()
+  if (eventType.dailyLimit || eventType.weeklyLimit) {
+    const allBookings = await prisma.booking.findMany({
+      where: {
+        eventTypeId,
+        status: { in: ["CONFIRMED", "PENDING"] },
+        startTime: { gte: startDate },
+        endTime: { lte: endDate },
+      },
+    })
+    for (const b of allBookings) {
+      const dayKey = format(b.startTime, "yyyy-MM-dd")
+      dailyBookingCounts.set(dayKey, (dailyBookingCounts.get(dayKey) || 0) + 1)
+    }
+  }
+
+  // Generate slots for each day
+  const days = eachDayOfInterval({ start: startDate, end: endDate })
+  const slots: TimeSlot[] = []
+
+  for (const day of days) {
+    const dayOfWeek = day.getDay()
+    const dateStr = format(day, "yyyy-MM-dd")
+
+    // Check daily limit
+    if (eventType.dailyLimit && (dailyBookingCounts.get(dateStr) || 0) >= eventType.dailyLimit) {
+      continue
+    }
+
+    // Find applicable rules (date-specific override or day-of-week)
+    const dateOverride = availabilityRules.find(
+      (r) => r.date && format(r.date, "yyyy-MM-dd") === dateStr
+    )
+    const dayRules = dateOverride
+      ? [dateOverride]
+      : availabilityRules.filter((r) => r.dayOfWeek === dayOfWeek && !r.date)
+
+    for (const rule of dayRules) {
+      const [startH, startM] = rule.startTime.split(":").map(Number)
+      const [endH, endM] = rule.endTime.split(":").map(Number)
+
+      // Create times in user's timezone, then convert to UTC
+      const dayInUserTz = toZonedTime(day, user.timezone)
+      const windowStart = fromZonedTime(
+        setMinutes(setHours(startOfDay(dayInUserTz), startH), startM),
+        user.timezone
+      )
+      const windowEnd = fromZonedTime(
+        setMinutes(setHours(startOfDay(dayInUserTz), endH), endM),
+        user.timezone
+      )
+
+      // Generate slots within window
+      let slotStart = windowStart
+      while (addMinutes(slotStart, duration) <= windowEnd) {
+        const slotEnd = addMinutes(slotStart, duration)
+        const blockStart = addMinutes(slotStart, -bufferBefore)
+        const blockEnd = addMinutes(slotEnd, bufferAfter)
+
+        // Check: not in past, not too soon
+        if (isAfter(slotStart, earliestBooking)) {
+          // Check: no conflicts
+          const hasConflict = busySlots.some(
+            (busy) => isBefore(blockStart, busy.end) && isAfter(blockEnd, busy.start)
+          )
+
+          if (!hasConflict) {
+            slots.push({ start: slotStart, end: slotEnd })
+          }
+        }
+
+        slotStart = addMinutes(slotStart, 15) // 15-min increments
+      }
+    }
+  }
+
+  return slots
+}
+
+export async function initDefaultAvailability(userId: string) {
+  const days = [1, 2, 3, 4, 5] // Mon-Fri
+  await prisma.availability.createMany({
+    data: days.map((day) => ({
+      userId,
+      dayOfWeek: day,
+      startTime: "09:00",
+      endTime: "17:00",
+      enabled: true,
+    })),
+  })
+}

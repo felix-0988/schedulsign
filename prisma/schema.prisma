@@ -1,0 +1,316 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── NextAuth Models ───
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─── User ───
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  timezone      String    @default("America/New_York")
+  
+  // Subscription
+  stripeCustomerId     String?   @unique
+  stripeSubscriptionId String?   @unique
+  stripePriceId        String?
+  stripeCurrentPeriodEnd DateTime?
+  plan                 Plan      @default(FREE)
+
+  // Branding
+  brandColor    String   @default("#2563eb")
+  brandLogo     String?
+  slug          String?  @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts       Account[]
+  sessions       Session[]
+  eventTypes     EventType[]
+  bookings       Booking[]
+  availability   Availability[]
+  calendarConnections CalendarConnection[]
+  webhooks       Webhook[]
+  contacts       Contact[]
+  documents      Document[]
+}
+
+enum Plan {
+  FREE
+  PRO
+}
+
+// ─── Scheduling: Event Types ───
+
+model EventType {
+  id          String  @id @default(cuid())
+  userId      String
+  title       String
+  slug        String
+  description String?
+  duration    Int     @default(30)  // minutes
+  location    LocationType @default(GOOGLE_MEET)
+  customLocation String?
+  color       String  @default("#2563eb")
+  active      Boolean @default(true)
+
+  // Settings
+  bufferBefore   Int @default(0)  // minutes
+  bufferAfter    Int @default(0)
+  dailyLimit     Int? 
+  weeklyLimit    Int?
+  minNotice      Int @default(120)    // minutes before booking
+  maxFutureDays  Int @default(60)
+
+  // Payment
+  requirePayment Boolean @default(false)
+  price          Float?
+  currency       String  @default("usd")
+
+  // Collective scheduling
+  isCollective   Boolean @default(false)
+  collectiveMembers String[] // user IDs
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookings  Booking[]
+  questions CustomQuestion[]
+
+  @@unique([userId, slug])
+}
+
+enum LocationType {
+  GOOGLE_MEET
+  ZOOM
+  IN_PERSON
+  PHONE
+  CUSTOM
+}
+
+// ─── Custom Questions ───
+
+model CustomQuestion {
+  id          String       @id @default(cuid())
+  eventTypeId String
+  label       String
+  type        QuestionType @default(TEXT)
+  required    Boolean      @default(false)
+  options     String[]     // for SELECT/RADIO
+  order       Int          @default(0)
+
+  eventType EventType @relation(fields: [eventTypeId], references: [id], onDelete: Cascade)
+}
+
+enum QuestionType {
+  TEXT
+  TEXTAREA
+  SELECT
+  RADIO
+  CHECKBOX
+  PHONE
+  EMAIL
+}
+
+// ─── Bookings ───
+
+model Booking {
+  id            String        @id @default(cuid())
+  uid           String        @unique @default(cuid())
+  eventTypeId   String
+  userId        String
+  title         String
+  startTime     DateTime
+  endTime       DateTime
+  status        BookingStatus @default(CONFIRMED)
+  
+  // Booker info
+  bookerName    String
+  bookerEmail   String
+  bookerTimezone String
+  bookerPhone   String?
+  
+  // Meeting
+  location      LocationType
+  meetingUrl    String?
+  meetingId     String?
+
+  // Payment
+  paid          Boolean @default(false)
+  paymentAmount Float?
+  stripePaymentIntentId String?
+
+  // Answers to custom questions
+  answers       Json?
+
+  // Cancellation/reschedule
+  cancelReason  String?
+  rescheduleUid String?
+
+  // Notifications
+  reminderSentAt    DateTime?
+  smsReminderSentAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  eventType EventType @relation(fields: [eventTypeId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  RESCHEDULED
+  COMPLETED
+  NO_SHOW
+}
+
+// ─── Availability ───
+
+model Availability {
+  id     String @id @default(cuid())
+  userId String
+  
+  // Day of week (0=Sunday, 6=Saturday) or specific date
+  dayOfWeek Int?      // 0-6
+  date      DateTime? // for date-specific overrides
+  
+  startTime String // "09:00"
+  endTime   String // "17:00"
+  enabled   Boolean @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Calendar Connections ───
+
+model CalendarConnection {
+  id           String       @id @default(cuid())
+  userId       String
+  provider     CalendarProvider
+  accessToken  String       @db.Text
+  refreshToken String?      @db.Text
+  expiresAt    DateTime?
+  email        String?
+  isPrimary    Boolean      @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider, email])
+}
+
+enum CalendarProvider {
+  GOOGLE
+  OUTLOOK
+}
+
+// ─── Webhooks ───
+
+model Webhook {
+  id        String   @id @default(cuid())
+  userId    String
+  url       String
+  events    String[] // booking.created, booking.cancelled, etc.
+  secret    String
+  active    Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Contacts ───
+
+model Contact {
+  id        String  @id @default(cuid())
+  userId    String
+  name      String
+  email     String
+  phone     String?
+  company   String?
+  notes     String?
+  source    String? // booking, signature, manual
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, email])
+}
+
+// ─── Documents (E-Signature - schema ready for Module 2) ───
+
+model Document {
+  id          String         @id @default(cuid())
+  userId      String
+  title       String
+  fileName    String
+  fileUrl     String
+  status      DocumentStatus @default(DRAFT)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum DocumentStatus {
+  DRAFT
+  SENT
+  VIEWED
+  SIGNED
+  COMPLETED
+  VOIDED
+}
