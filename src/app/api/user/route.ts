@@ -13,7 +13,13 @@ export async function GET() {
       id: true, name: true, email: true, image: true, timezone: true,
       plan: true, slug: true, brandColor: true, brandLogo: true,
       stripeCurrentPeriodEnd: true,
-      calendarConnections: { select: { provider: true, email: true } },
+      calendarConnections: {
+        select: {
+          id: true, provider: true, email: true,
+          isPrimary: true, checkConflicts: true, label: true,
+        },
+        orderBy: { createdAt: "asc" },
+      },
     },
   })
   return NextResponse.json(user)

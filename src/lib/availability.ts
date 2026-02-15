@@ -1,8 +1,7 @@
 import { addMinutes, eachDayOfInterval, format, isAfter, isBefore, parseISO, setHours, setMinutes, startOfDay } from "date-fns"
 import { toZonedTime, fromZonedTime } from "date-fns-tz"
 import prisma from "./prisma"
-import { getGoogleBusyTimes } from "./calendar/google"
-import { getOutlookBusyTimes } from "./calendar/outlook"
+import { getConflictingEvents } from "./calendar/conflict-detection"
 
 interface TimeSlot {
   start: Date
@@ -36,10 +35,9 @@ export async function getAvailableSlots(options: AvailabilityOptions): Promise<T
   const now = new Date()
   const earliestBooking = addMinutes(now, minNotice)
 
-  // Get busy times from calendars and existing bookings
-  const [googleBusy, outlookBusy, existingBookings] = await Promise.all([
-    getGoogleBusyTimes(userId, startDate, endDate),
-    getOutlookBusyTimes(userId, startDate, endDate),
+  // Get busy times from all calendars with conflict checking enabled, plus existing bookings
+  const [calendarConflicts, existingBookings] = await Promise.all([
+    getConflictingEvents(userId, startDate, endDate, eventTypeId),
     prisma.booking.findMany({
       where: {
         userId,
@@ -52,8 +50,7 @@ export async function getAvailableSlots(options: AvailabilityOptions): Promise<T
   ])
 
   const busySlots: TimeSlot[] = [
-    ...googleBusy,
-    ...outlookBusy,
+    ...calendarConflicts.map((e) => ({ start: e.start, end: e.end })),
     ...existingBookings.map((b) => ({ start: b.startTime, end: b.endTime })),
   ]
 
