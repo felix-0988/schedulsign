@@ -78,6 +78,12 @@ variable "db_instance_class" {
   default     = "db.t4g.micro" # Free tier eligible
 }
 
+variable "notification_email" {
+  description = "Email address for migration notifications"
+  type        = string
+  default     = null
+}
+
 # Data sources
 data "aws_caller_identity" "current" {}
 data "aws_availability_zones" "available" {
