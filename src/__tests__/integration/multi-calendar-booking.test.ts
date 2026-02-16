@@ -218,7 +218,7 @@ describe("Multi-Calendar Booking Flow - Integration Tests", () => {
       checkConflicts: true,
       isPrimary: false,
     })
-    const cal3 = makeCalendarConnection({
+    const _cal3 = makeCalendarConnection({
       id: "cal-3",
       provider: "GOOGLE",
       email: "side@gmail.com",
@@ -553,7 +553,7 @@ describe("Multi-Calendar Booking Flow - Integration Tests", () => {
 
   describe("primary calendar management", () => {
     it("setting a new primary unsets the previous primary", async () => {
-      const cal1 = makeCalendarConnection({ id: "cal-1", isPrimary: true })
+      const _cal1 = makeCalendarConnection({ id: "cal-1", isPrimary: true })
       const cal2 = makeCalendarConnection({
         id: "cal-2",
         email: "work@gmail.com",
