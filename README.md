@@ -154,3 +154,4 @@ docker run -p 3000:3000 --env-file .env schedulsign
 ## License
 
 MIT
+# Trigger rebuild with updated env vars
