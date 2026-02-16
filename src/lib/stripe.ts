@@ -1,9 +1,14 @@
 import Stripe from "stripe"
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2023-10-16",
-  typescript: true,
-})
+// Use a placeholder key during build if not set
+// The actual key will be provided by environment variables at runtime
+export const stripe = new Stripe(
+  process.env.STRIPE_SECRET_KEY || "sk_test_placeholder_for_build",
+  {
+    apiVersion: "2023-10-16",
+    typescript: true,
+  }
+)
 
 export const PLANS = {
   FREE: {
