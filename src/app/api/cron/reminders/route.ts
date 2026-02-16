@@ -16,7 +16,6 @@ export async function GET(req: Request) {
 
   const now = new Date()
   const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000)
-  const thirtyMinAgo = new Date(now.getTime() - 30 * 60 * 1000)
 
   // Find bookings starting within the next hour that haven't had reminders sent
   const bookings = await prisma.booking.findMany({

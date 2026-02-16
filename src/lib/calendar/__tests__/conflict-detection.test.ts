@@ -82,7 +82,7 @@ function makeGoogleEvent(overrides: Partial<CalendarEvent> = {}): CalendarEvent 
   }
 }
 
-function makeOutlookEvent(overrides: Partial<CalendarEvent> = {}): CalendarEvent {
+function _makeOutlookEvent(overrides: Partial<CalendarEvent> = {}): CalendarEvent {
   return {
     start: new Date("2026-03-01T14:00:00Z"),
     end: new Date("2026-03-01T15:00:00Z"),

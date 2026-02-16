@@ -97,7 +97,7 @@ export async function fetchGoogleCalendarEvents(
 
   const calendar = google.calendar({ version: "v3", auth: oauth2Client })
 
-  let allEvents: CalendarEvent[] = []
+  const allEvents: CalendarEvent[] = []
   let pageToken: string | undefined
 
   try {
