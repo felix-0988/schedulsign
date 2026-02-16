@@ -1,15 +1,14 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
+import { getAuthenticatedUser } from "@/lib/auth"
 import prisma from "@/lib/prisma"
 import { generateSlug } from "@/lib/utils"
 
 export async function GET() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const user = await getAuthenticatedUser()
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const eventTypes = await prisma.eventType.findMany({
-    where: { userId: (session.user as any).id },
+    where: { userId: user.id },
     include: { questions: { orderBy: { order: "asc" } }, _count: { select: { bookings: true } } },
     orderBy: { createdAt: "desc" },
   })
@@ -17,15 +16,14 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const user = await getAuthenticatedUser()
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const userId = (session.user as any).id
   const body = await req.json()
 
   // Check plan limits
-  const user = await prisma.user.findUnique({ where: { id: userId } })
-  if (user?.plan === "FREE") {
+  const userId = user.id
+  if (user.plan === "FREE") {
     const count = await prisma.eventType.count({ where: { userId } })
     if (count >= 1) {
       return NextResponse.json({ error: "Free plan limited to 1 event type. Upgrade to Pro." }, { status: 403 })

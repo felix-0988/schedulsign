@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
+import { getAuthenticatedUser } from "@/lib/auth"
 import prisma from "@/lib/prisma"
 
 export async function GET() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const user = await getAuthenticatedUser()
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const user = await prisma.user.findUnique({
-    where: { id: (session.user as any).id },
+  // Return user with calendar connections
+  const fullUser = await prisma.user.findUnique({
+    where: { id: user.id },
     select: {
       id: true, name: true, email: true, image: true, timezone: true,
       plan: true, slug: true, brandColor: true, brandLogo: true,
@@ -22,16 +22,17 @@ export async function GET() {
       },
     },
   })
-  return NextResponse.json(user)
+
+  return NextResponse.json(fullUser)
 }
 
 export async function PATCH(req: Request) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const user = await getAuthenticatedUser()
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const body = await req.json()
-  const user = await prisma.user.update({
-    where: { id: (session.user as any).id },
+  const updated = await prisma.user.update({
+    where: { id: user.id },
     data: {
       name: body.name,
       timezone: body.timezone,
@@ -40,5 +41,5 @@ export async function PATCH(req: Request) {
       brandLogo: body.brandLogo,
     },
   })
-  return NextResponse.json(user)
+  return NextResponse.json(updated)
 }

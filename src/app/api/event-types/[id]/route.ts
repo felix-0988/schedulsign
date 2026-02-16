@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
+import { getAuthenticatedUser } from "@/lib/auth"
 import prisma from "@/lib/prisma"
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const user = await getAuthenticatedUser()
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const eventType = await prisma.eventType.findFirst({
-    where: { id: params.id, userId: (session.user as any).id },
+    where: { id: params.id, userId: user.id },
     include: { questions: { orderBy: { order: "asc" } } },
   })
   if (!eventType) return NextResponse.json({ error: "Not found" }, { status: 404 })
@@ -16,8 +15,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 }
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const user = await getAuthenticatedUser()
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const body = await req.json()
   const eventType = await prisma.eventType.update({
@@ -46,8 +45,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 }
 
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const user = await getAuthenticatedUser()
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   await prisma.eventType.delete({ where: { id: params.id } })
   return NextResponse.json({ success: true })

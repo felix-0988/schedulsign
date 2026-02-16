@@ -9,8 +9,7 @@
  * @see {@link file://src/lib/calendar/conflict-detection.ts} for the conflict detection service
  */
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
+import { getAuthenticatedUser } from "@/lib/auth"
 import prisma from "@/lib/prisma"
 
 /**
@@ -38,12 +37,12 @@ import prisma from "@/lib/prisma"
  * @returns 404 - Calendar connection not found
  */
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user) {
+  const user = await getAuthenticatedUser()
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const userId = (session.user as any).id
+  const userId = user.id
   const { id } = params
 
   // Verify the calendar connection exists and belongs to the user
@@ -112,12 +111,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
  * @returns 404 - Calendar connection not found
  */
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user) {
+  const user = await getAuthenticatedUser()
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const userId = (session.user as any).id
+  const userId = user.id
   const { id } = params
 
   // Verify the calendar connection exists and belongs to the user

@@ -132,18 +132,11 @@ resource "aws_amplify_branch" "main" {
     # Database
     DATABASE_URL = "postgresql://${local.db_username}:${random_password.db_password.result}@${aws_db_instance.main.address}:${aws_db_instance.main.port}/${local.db_name}"
 
-    # NextAuth
-    NEXTAUTH_URL    = var.environment == "prod" && var.domain_name != null ? "https://${var.domain_name}" : "https://main.${aws_amplify_app.main.default_domain}"
-    NEXTAUTH_SECRET = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
-
-    # Google OAuth
-    GOOGLE_CLIENT_ID     = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
-    GOOGLE_CLIENT_SECRET = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
-
-    # Microsoft OAuth
-    MICROSOFT_CLIENT_ID     = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
-    MICROSOFT_CLIENT_SECRET = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
-    MICROSOFT_TENANT_ID     = "common"
+    # Cognito
+    NEXT_PUBLIC_COGNITO_USER_POOL_ID     = aws_cognito_user_pool.main.id
+    NEXT_PUBLIC_COGNITO_CLIENT_ID        = aws_cognito_user_pool_client.main.id
+    NEXT_PUBLIC_COGNITO_DOMAIN           = "https://${aws_cognito_user_pool_domain.main.domain}.auth.${var.aws_region}.amazoncognito.com"
+    NEXT_PUBLIC_COGNITO_ISSUER           = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.main.id}"
 
     # Stripe
     STRIPE_SECRET_KEY              = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
