@@ -54,22 +54,49 @@ function hasCognitoCookies(request: NextRequest): boolean {
   return !!idToken?.value
 }
 
-// Clear stale HttpOnly cookies left by the old server-side auth approach.
-// The client SDK can't see or clear HttpOnly cookies, so middleware does it.
-function clearStaleServerAuthCookies(request: NextRequest, response: NextResponse) {
-  for (const [name] of request.cookies) {
-    if (name.startsWith("com.amplify.server_auth.")) {
-      response.cookies.set(name, "", { maxAge: 0, httpOnly: true, path: "/" })
+// Convert HttpOnly Cognito cookies to non-HttpOnly so the client SDK can read them.
+// createAuthRouteHandlers sets HttpOnly cookies after OAuth; the client SDK needs
+// non-HttpOnly cookies to avoid POST cognito-idp 400 errors.
+function convertCognitoCookies(request: NextRequest, response: NextResponse) {
+  const clientId = process.env.NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID
+  if (!clientId) return
+
+  // Only convert if we have Cognito cookies but no sentinel (already converted)
+  if (request.cookies.get("auth_cookies_converted")) return
+
+  const lastAuthUser = request.cookies.get(
+    `CognitoIdentityServiceProvider.${clientId}.LastAuthUser`
+  )
+  if (!lastAuthUser?.value) return
+
+  const isSecure = request.nextUrl.protocol === "https:"
+
+  for (const [name, value] of request.cookies.entries()) {
+    if (name.startsWith(`CognitoIdentityServiceProvider.${clientId}.`)) {
+      response.cookies.set(name, value, {
+        httpOnly: false,
+        path: "/",
+        secure: isSecure,
+        sameSite: "lax",
+      })
     }
   }
+
+  // Sentinel cookie so we don't re-convert on every request
+  response.cookies.set("auth_cookies_converted", "1", {
+    httpOnly: false,
+    path: "/",
+    secure: isSecure,
+    sameSite: "lax",
+  })
 }
 
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next()
   const { pathname } = request.nextUrl
 
-  // Always clear stale server-auth cookies (from the old createAuthRouteHandlers approach)
-  clearStaleServerAuthCookies(request, response)
+  // Convert HttpOnly Cognito cookies to non-HttpOnly for the client SDK
+  convertCognitoCookies(request, response)
 
   if (isPublicRoute(pathname) || isPublicDynamicRoute(pathname)) {
     return response
