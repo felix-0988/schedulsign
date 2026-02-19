@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
+import { getAuthenticatedUser } from "@/lib/auth"
 import prisma from "@/lib/prisma"
 
 export async function GET(req: Request) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user) {
+  const user = await getAuthenticatedUser()
+  if (!user) {
     return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/login`)
   }
 
@@ -44,12 +43,10 @@ export async function GET(req: Request) {
   })
   const profile = await profileRes.json()
 
-  const userId = (session.user as any).id
-
   await prisma.calendarConnection.upsert({
     where: {
       userId_provider_email: {
-        userId,
+        userId: user.id,
         provider: "OUTLOOK",
         email: profile.mail || profile.userPrincipalName,
       },
@@ -60,7 +57,7 @@ export async function GET(req: Request) {
       expiresAt: new Date(Date.now() + tokens.expires_in * 1000),
     },
     create: {
-      userId,
+      userId: user.id,
       provider: "OUTLOOK",
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token,

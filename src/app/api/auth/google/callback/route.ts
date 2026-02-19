@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
   const error = searchParams.get("error")
 
   if (error || !code || !state) {
-    return NextResponse.redirect(new URL("/dashboard/settings?error=GoogleAuthFailed", process.env.NEXTAUTH_URL!))
+    return NextResponse.redirect(new URL("/dashboard/settings?error=GoogleAuthFailed", process.env.NEXT_PUBLIC_APP_URL!))
   }
 
   try {
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
         code,
         client_id: process.env.GOOGLE_CLIENT_ID!,
         client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-        redirect_uri: `${process.env.NEXTAUTH_URL}/api/auth/google/callback`,
+        redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/google/callback`,
         grant_type: "authorization_code",
       }),
     })
@@ -62,9 +62,9 @@ export async function GET(req: NextRequest) {
       },
     })
 
-    return NextResponse.redirect(new URL("/dashboard/settings?success=GoogleConnected", process.env.NEXTAUTH_URL!))
+    return NextResponse.redirect(new URL("/dashboard/settings?success=GoogleConnected", process.env.NEXT_PUBLIC_APP_URL!))
   } catch (error) {
     console.error("Google OAuth callback error:", error)
-    return NextResponse.redirect(new URL("/dashboard/settings?error=GoogleAuthFailed", process.env.NEXTAUTH_URL!))
+    return NextResponse.redirect(new URL("/dashboard/settings?error=GoogleAuthFailed", process.env.NEXT_PUBLIC_APP_URL!))
   }
 }
