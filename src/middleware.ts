@@ -54,9 +54,22 @@ function hasCognitoCookies(request: NextRequest): boolean {
   return !!idToken?.value
 }
 
+// Clear stale HttpOnly cookies left by the old server-side auth approach.
+// The client SDK can't see or clear HttpOnly cookies, so middleware does it.
+function clearStaleServerAuthCookies(request: NextRequest, response: NextResponse) {
+  for (const [name] of request.cookies) {
+    if (name.startsWith("com.amplify.server_auth.")) {
+      response.cookies.set(name, "", { maxAge: 0, httpOnly: true, path: "/" })
+    }
+  }
+}
+
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next()
   const { pathname } = request.nextUrl
+
+  // Always clear stale server-auth cookies (from the old createAuthRouteHandlers approach)
+  clearStaleServerAuthCookies(request, response)
 
   if (isPublicRoute(pathname) || isPublicDynamicRoute(pathname)) {
     return response

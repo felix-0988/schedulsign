@@ -52,8 +52,8 @@ export async function resendVerificationCode(email: string) {
   return amplifyResendSignUpCode({ username: email })
 }
 
-export async function signInWithGoogle() {
-  // Clear stale non-HttpOnly Cognito cookies from a previous server-side auth session
+export function clearStaleAuthData() {
+  // Clear non-HttpOnly Cognito cookies
   document.cookie.split(";").forEach((c) => {
     const name = c.trim().split("=")[0]
     if (
@@ -63,6 +63,19 @@ export async function signInWithGoogle() {
       document.cookie = `${name}=; Max-Age=0; path=/`
     }
   })
+  // Clear stale Cognito data from localStorage
+  Object.keys(localStorage).forEach((key) => {
+    if (
+      key.startsWith("CognitoIdentityServiceProvider.") ||
+      key.startsWith("amplify-")
+    ) {
+      localStorage.removeItem(key)
+    }
+  })
+}
+
+export async function signInWithGoogle() {
+  clearStaleAuthData()
   await amplifySignInWithRedirect({ provider: "Google" })
 }
 
