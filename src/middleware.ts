@@ -58,7 +58,12 @@ export async function middleware(request: NextRequest) {
       return response
     }
   } catch {
-    // Auth check failed, redirect to login
+    // Auth check failed, treat as unauthenticated
+  }
+
+  // For API routes, return JSON 401 instead of redirecting to HTML login page
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   const loginUrl = new URL("/login", request.url)

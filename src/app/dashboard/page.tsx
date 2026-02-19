@@ -9,12 +9,19 @@ export default function DashboardPage() {
   const [bookings, setBookings] = useState<any[]>([])
 
   useEffect(() => {
-    fetch("/api/event-types").then(r => r.json()).then(d => setStats(s => ({ ...s, eventTypes: d.length })))
-    fetch("/api/bookings").then(r => r.json()).then(d => {
-      const upcoming = d.filter((b: any) => b.status === "CONFIRMED" && new Date(b.startTime) > new Date())
-      setBookings(upcoming.slice(0, 5))
-      setStats(s => ({ ...s, upcoming: upcoming.length }))
-    })
+    fetch("/api/event-types")
+      .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json() })
+      .then(d => setStats(s => ({ ...s, eventTypes: Array.isArray(d) ? d.length : 0 })))
+      .catch(() => {})
+    fetch("/api/bookings")
+      .then(r => { if (!r.ok) throw new Error(r.statusText); return r.json() })
+      .then(d => {
+        if (!Array.isArray(d)) return
+        const upcoming = d.filter((b: any) => b.status === "CONFIRMED" && new Date(b.startTime) > new Date())
+        setBookings(upcoming.slice(0, 5))
+        setStats(s => ({ ...s, upcoming: upcoming.length }))
+      })
+      .catch(() => {})
   }, [])
 
   return (
