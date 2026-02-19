@@ -71,9 +71,9 @@ function convertCognitoCookies(request: NextRequest, response: NextResponse) {
 
   const isSecure = request.nextUrl.protocol === "https:"
 
-  for (const [name, value] of request.cookies.entries()) {
-    if (name.startsWith(`CognitoIdentityServiceProvider.${clientId}.`)) {
-      response.cookies.set(name, value, {
+  for (const cookie of request.cookies.getAll()) {
+    if (cookie.name.startsWith(`CognitoIdentityServiceProvider.${clientId}.`)) {
+      response.cookies.set(cookie.name, cookie.value, {
         httpOnly: false,
         path: "/",
         secure: isSecure,
