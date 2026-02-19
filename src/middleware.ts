@@ -37,6 +37,23 @@ function isPublicDynamicRoute(pathname: string): boolean {
   return false
 }
 
+// Check for Cognito auth cookies directly (works reliably after OAuth)
+function hasCognitoCookies(request: NextRequest): boolean {
+  const clientId = process.env.NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID
+  if (!clientId) return false
+
+  const lastAuthUser = request.cookies.get(
+    `CognitoIdentityServiceProvider.${clientId}.LastAuthUser`
+  )
+  if (!lastAuthUser?.value) return false
+
+  // Also verify that an idToken cookie exists for this user
+  const idToken = request.cookies.get(
+    `CognitoIdentityServiceProvider.${clientId}.${lastAuthUser.value}.idToken`
+  )
+  return !!idToken?.value
+}
+
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next()
   const { pathname } = request.nextUrl
@@ -45,12 +62,28 @@ export async function middleware(request: NextRequest) {
     return response
   }
 
+  // API routes handle their own auth via getAuthenticatedUser()
+  // No need for middleware to check - avoids HTML redirect for JSON endpoints
+  if (pathname.startsWith("/api/")) {
+    return response
+  }
+
+  // Primary check: look for Cognito auth cookies directly
+  // This works reliably after OAuth signInWithRedirect (no race condition)
+  if (hasCognitoCookies(request)) {
+    return response
+  }
+
+  // Fallback: try Amplify server-side session check
   try {
     const authenticated = await runWithAmplifyServerContext({
       nextServerContext: { request, response },
       operation: async (contextSpec) => {
         const session = await fetchAuthSession(contextSpec)
-        return session.tokens !== undefined
+        return (
+          session.tokens?.accessToken !== undefined &&
+          session.tokens?.idToken !== undefined
+        )
       },
     })
 
@@ -59,11 +92,6 @@ export async function middleware(request: NextRequest) {
     }
   } catch {
     // Auth check failed, treat as unauthenticated
-  }
-
-  // For API routes, return JSON 401 instead of redirecting to HTML login page
-  if (pathname.startsWith("/api/")) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   const loginUrl = new URL("/login", request.url)

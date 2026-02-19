@@ -53,12 +53,6 @@ export async function resendVerificationCode(email: string) {
 }
 
 export async function signInWithGoogle() {
-  // Clear any stale auth state before starting OAuth flow
-  try {
-    await amplifySignOut()
-  } catch {
-    // Ignore - user might not be signed in
-  }
   return amplifySignInWithRedirect({ provider: "Google" })
 }
 
