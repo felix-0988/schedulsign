@@ -75,6 +75,13 @@ resource "aws_cognito_user_pool" "main" {
   # Lambda triggers
   lambda_config {
     post_confirmation = aws_lambda_function.cognito_post_confirmation.arn
+
+    custom_email_sender {
+      lambda_arn     = aws_lambda_function.cognito_custom_email_sender.arn
+      lambda_version = "V1_0"
+    }
+
+    kms_key_id = aws_kms_key.cognito_email.arn
   }
 
   # Deletion protection for prod
@@ -354,13 +361,217 @@ resource "aws_lambda_permission" "cognito_post_confirmation" {
 }
 
 # =============================================================================
-# Update Amplify environment variables for Cognito
+# KMS Key for Cognito CustomEmailSender
 # =============================================================================
+# Cognito's CustomEmailSender Lambda trigger requires a KMS key to encrypt
+# the verification code payload. The Lambda decrypts it before sending email.
 
-# Note: Cognito environment variables are added to the Amplify branch
-# environment_variables in amplify.tf. After applying this, update amplify.tf
-# to include the Cognito outputs as environment variables, or manage them
-# via the Amplify Console.
+resource "aws_kms_key" "cognito_email" {
+  description = "KMS key for Cognito CustomEmailSender code encryption"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Id      = "cognito-email-key"
+    Statement = [
+      {
+        Sid    = "EnableRootAccount"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      },
+      {
+        Sid    = "AllowCognitoService"
+        Effect = "Allow"
+        Principal = {
+          Service = "cognito-idp.amazonaws.com"
+        }
+        Action = [
+          "kms:Encrypt",
+          "kms:GenerateDataKey",
+          "kms:CreateGrant",
+          "kms:DescribeKey"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "AllowGrantsForAWSResources"
+        Effect = "Allow"
+        Principal = {
+          AWS = "*"
+        }
+        Action   = "kms:CreateGrant"
+        Resource = "*"
+        Condition = {
+          Bool = {
+            "kms:GrantIsForAWSResource" = "true"
+          }
+          StringEquals = {
+            "aws:PrincipalAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${local.app_name}-cognito-email-key"
+  }
+}
+
+resource "aws_kms_alias" "cognito_email" {
+  name          = "alias/${local.app_name}-${var.environment}-cognito-email"
+  target_key_id = aws_kms_key.cognito_email.key_id
+}
+
+# =============================================================================
+# CustomEmailSender Lambda Function
+# =============================================================================
+# Decrypts KMS-encrypted codes from Cognito and sends branded HTML emails
+# via cross-account SES (OrganizationSESSendingRole in shared account).
+
+# IAM Role for CustomEmailSender Lambda
+resource "aws_iam_role" "cognito_custom_email_sender" {
+  name = "${local.app_name}-cognito-email-sender-${var.environment}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Service = "lambda.amazonaws.com"
+      }
+      Action = "sts:AssumeRole"
+    }]
+  })
+
+  tags = {
+    Name = "${local.app_name}-cognito-email-sender"
+  }
+}
+
+# IAM Policy - CloudWatch Logs
+resource "aws_iam_role_policy" "cognito_custom_email_sender_logs" {
+  name = "cloudwatch-logs"
+  role = aws_iam_role.cognito_custom_email_sender.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "WriteLogs"
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = [
+          "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${local.app_name}-cognito-email-sender-${var.environment}*"
+        ]
+      }
+    ]
+  })
+}
+
+# IAM Policy - KMS Decrypt (to decrypt Cognito's encrypted codes)
+resource "aws_iam_role_policy" "cognito_custom_email_sender_kms" {
+  name = "kms-decrypt"
+  role = aws_iam_role.cognito_custom_email_sender.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "DecryptCognitoCode"
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt"
+        ]
+        Resource = [
+          aws_kms_key.cognito_email.arn
+        ]
+      }
+    ]
+  })
+}
+
+# IAM Policy - STS AssumeRole (to assume cross-account SES sending role)
+resource "aws_iam_role_policy" "cognito_custom_email_sender_sts" {
+  name = "assume-ses-role"
+  role = aws_iam_role.cognito_custom_email_sender.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AssumeSESSendingRole"
+        Effect = "Allow"
+        Action = [
+          "sts:AssumeRole"
+        ]
+        Resource = [
+          var.ses_sending_role_arn
+        ]
+      }
+    ]
+  })
+}
+
+# Lambda Function
+resource "aws_lambda_function" "cognito_custom_email_sender" {
+  function_name = "${local.app_name}-cognito-email-sender-${var.environment}"
+  role          = aws_iam_role.cognito_custom_email_sender.arn
+  handler       = "index.handler"
+  runtime       = "nodejs20.x"
+  timeout       = 30
+  memory_size   = 256
+
+  # Code package
+  filename         = "${path.module}/lambda/cognito-custom-email-sender/function.zip"
+  source_code_hash = fileexists("${path.module}/lambda/cognito-custom-email-sender/function.zip") ? filebase64sha256("${path.module}/lambda/cognito-custom-email-sender/function.zip") : null
+
+  environment {
+    variables = {
+      ENVIRONMENT  = var.environment
+      KMS_KEY_ARN  = aws_kms_key.cognito_email.arn
+      SES_ROLE_ARN = var.ses_sending_role_arn
+      SES_REGION   = "us-east-1"
+      FROM_EMAIL   = var.ses_from_email
+    }
+  }
+
+  depends_on = [
+    aws_iam_role_policy.cognito_custom_email_sender_logs,
+    aws_iam_role_policy.cognito_custom_email_sender_kms,
+    aws_iam_role_policy.cognito_custom_email_sender_sts
+  ]
+
+  tags = {
+    Name = "${local.app_name}-cognito-email-sender"
+  }
+}
+
+# CloudWatch Log Group for CustomEmailSender Lambda
+resource "aws_cloudwatch_log_group" "cognito_custom_email_sender" {
+  name              = "/aws/lambda/${aws_lambda_function.cognito_custom_email_sender.function_name}"
+  retention_in_days = var.environment == "prod" ? 90 : 14
+
+  tags = {
+    Name = "${local.app_name}-cognito-email-sender-logs"
+  }
+}
+
+# Allow Cognito to invoke the CustomEmailSender Lambda
+resource "aws_lambda_permission" "cognito_custom_email_sender" {
+  statement_id  = "AllowCognitoInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.cognito_custom_email_sender.function_name
+  principal     = "cognito-idp.amazonaws.com"
+  source_arn    = aws_cognito_user_pool.main.arn
+}
 
 # =============================================================================
 # Outputs

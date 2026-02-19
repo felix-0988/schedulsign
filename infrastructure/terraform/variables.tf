@@ -12,3 +12,15 @@ variable "google_oauth_client_secret" {
   type        = string
   sensitive   = true
 }
+
+variable "ses_sending_role_arn" {
+  description = "ARN of the cross-account IAM role in the shared account for SES sending"
+  type        = string
+  default     = "arn:aws:iam::346871995105:role/OrganizationSESSendingRole"
+}
+
+variable "ses_from_email" {
+  description = "From address for Cognito emails via CustomEmailSender"
+  type        = string
+  default     = "SchedulSign <hello@zenithstudio.io>"
+}
