@@ -49,9 +49,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Listen for OAuth redirect completion (Google sign-in)
   useEffect(() => {
     const unsubscribe = Hub.listen("auth", async ({ payload }) => {
-      if (payload.event === "signInWithRedirect") {
+      if (payload.event === "signInWithRedirect" || payload.event === "signedIn") {
         await refreshUser()
-        window.location.href = "/dashboard"
+        // Redirect to dashboard if on a public/auth page
+        const path = window.location.pathname
+        if (path === "/" || path === "/login" || path === "/signup") {
+          window.location.href = "/dashboard"
+        }
       }
       if (payload.event === "signInWithRedirect_failure") {
         console.error("OAuth sign-in failed:", payload.data)
@@ -59,6 +63,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
     return unsubscribe
   }, [refreshUser])
+
+  // Fallback: if user is authenticated and on a public auth page, redirect
+  useEffect(() => {
+    if (!isLoading && user) {
+      const path = window.location.pathname
+      if (path === "/" || path === "/login" || path === "/signup") {
+        window.location.href = "/dashboard"
+      }
+    }
+  }, [isLoading, user])
 
   const login = async (email: string, password: string) => {
     const result = await authService.signIn(email, password)

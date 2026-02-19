@@ -46,6 +46,11 @@ function LoginForm() {
       }
     } catch (err) {
       if (err instanceof Error) {
+        // If already signed in, just go to dashboard
+        if (err.message.includes("already a signed in user")) {
+          router.replace(redirect)
+          return
+        }
         if (err.name === "NotAuthorizedException") {
           setError("Incorrect email or password.")
         } else if (err.name === "UserNotFoundException") {
@@ -69,6 +74,10 @@ function LoginForm() {
       await loginWithGoogle()
     } catch (err) {
       if (err instanceof Error) {
+        if (err.message.includes("already a signed in user")) {
+          router.replace(redirect)
+          return
+        }
         setError(err.message)
       }
     }
