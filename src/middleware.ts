@@ -47,7 +47,7 @@ export async function middleware(request: NextRequest) {
 
   try {
     const authenticated = await runWithAmplifyServerContext({
-      nextServerContext: { cookies: () => request.cookies },
+      nextServerContext: { request, response },
       operation: async (contextSpec) => {
         const session = await fetchAuthSession(contextSpec)
         return session.tokens !== undefined
