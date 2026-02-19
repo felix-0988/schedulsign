@@ -3,12 +3,13 @@
 import { useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { signIn, signInWithRedirect } from "aws-amplify/auth"
+import { useAuth } from "@/lib/contexts/auth-context"
 
 export default function LoginPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirect = searchParams.get("redirect") || "/dashboard"
+  const { login, loginWithGoogle } = useAuth()
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -21,11 +22,11 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const result = await signIn({ username: email, password })
+      const result = await login(email, password)
 
       if (result.isSignedIn) {
         router.push(redirect)
-      } else if (result.nextStep.signInStep === "CONFIRM_SIGN_UP") {
+      } else if (result.nextStep === "CONFIRM_SIGN_UP") {
         router.push(`/signup?email=${encodeURIComponent(email)}&confirm=true`)
       }
     } catch (err) {
@@ -50,7 +51,7 @@ export default function LoginPage() {
 
   async function handleGoogleSignIn() {
     try {
-      await signInWithRedirect({ provider: "Google" })
+      await loginWithGoogle()
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message)

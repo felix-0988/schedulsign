@@ -3,9 +3,9 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { fetchUserAttributes, signOut } from "aws-amplify/auth"
 import { Calendar, Clock, Settings, Webhook, LayoutDashboard, LogOut, Users, Menu, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useAuth } from "@/lib/contexts/auth-context"
 
 const navItems = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -20,20 +20,14 @@ const navItems = [
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
+  const { user, isLoading, isAuthenticated, logout } = useAuth()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [email, setEmail] = useState<string | null>(null)
-  const [isLoaded, setIsLoaded] = useState(false)
 
   useEffect(() => {
-    fetchUserAttributes()
-      .then((attrs) => {
-        setEmail(attrs.email ?? null)
-        setIsLoaded(true)
-      })
-      .catch(() => {
-        router.push("/login")
-      })
-  }, [router])
+    if (!isLoading && !isAuthenticated) {
+      router.push("/login")
+    }
+  }, [isLoading, isAuthenticated, router])
 
   // Close mobile menu when route changes
   useEffect(() => {
@@ -41,11 +35,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [pathname])
 
   async function handleSignOut() {
-    await signOut()
+    await logout()
     router.push("/")
   }
 
-  if (!isLoaded) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
@@ -68,7 +62,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           Schedul<span className="text-gray-900">Sign</span>
         </Link>
         <div className="ml-auto flex items-center gap-4">
-          <span className="text-sm text-gray-600 hidden sm:inline">{email}</span>
+          <span className="text-sm text-gray-600 hidden sm:inline">{user?.email}</span>
           <button onClick={handleSignOut} className="text-sm text-gray-500 hover:text-gray-700">
             <LogOut className="w-4 h-4" />
           </button>

@@ -3,11 +3,12 @@
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { signUp, confirmSignUp, resendSignUpCode, signIn, signInWithRedirect } from "aws-amplify/auth"
+import { useAuth } from "@/lib/contexts/auth-context"
 
 export default function SignUpPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { register, confirmRegistration, resendCode, login, loginWithGoogle } = useAuth()
 
   const [step, setStep] = useState<"signup" | "confirm">("signup")
   const [email, setEmail] = useState("")
@@ -31,20 +32,11 @@ export default function SignUpPage() {
     setLoading(true)
 
     try {
-      const result = await signUp({
-        username: email,
-        password,
-        options: {
-          userAttributes: {
-            email,
-            name,
-          },
-        },
-      })
+      const result = await register(email, password, name)
 
-      if (result.nextStep.signUpStep === "CONFIRM_SIGN_UP") {
+      if (result.needsConfirmation) {
         setStep("confirm")
-      } else if (result.isSignUpComplete) {
+      } else {
         router.push("/dashboard")
       }
     } catch (err) {
@@ -70,15 +62,12 @@ export default function SignUpPage() {
     setLoading(true)
 
     try {
-      const result = await confirmSignUp({
-        username: email,
-        confirmationCode,
-      })
+      const isComplete = await confirmRegistration(email, confirmationCode)
 
-      if (result.isSignUpComplete) {
+      if (isComplete) {
         // Auto sign in after confirmation
         try {
-          await signIn({ username: email, password })
+          await login(email, password)
           router.push("/dashboard")
         } catch {
           // If auto sign-in fails (e.g., password not available), redirect to login
@@ -107,7 +96,7 @@ export default function SignUpPage() {
     setResendDisabled(true)
 
     try {
-      await resendSignUpCode({ username: email })
+      await resendCode(email)
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message)
@@ -120,7 +109,7 @@ export default function SignUpPage() {
 
   async function handleGoogleSignIn() {
     try {
-      await signInWithRedirect({ provider: "Google" })
+      await loginWithGoogle()
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message)

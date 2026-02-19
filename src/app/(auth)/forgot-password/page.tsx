@@ -3,10 +3,11 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { resetPassword, confirmResetPassword } from "aws-amplify/auth"
+import { useAuth } from "@/lib/contexts/auth-context"
 
 export default function ForgotPasswordPage() {
   const router = useRouter()
+  const { forgotPassword, confirmForgotPassword } = useAuth()
 
   const [step, setStep] = useState<"request" | "confirm">("request")
   const [email, setEmail] = useState("")
@@ -21,11 +22,8 @@ export default function ForgotPasswordPage() {
     setLoading(true)
 
     try {
-      const result = await resetPassword({ username: email })
-
-      if (result.nextStep.resetPasswordStep === "CONFIRM_RESET_PASSWORD_WITH_CODE") {
-        setStep("confirm")
-      }
+      await forgotPassword(email)
+      setStep("confirm")
     } catch (err) {
       if (err instanceof Error) {
         if (err.name === "UserNotFoundException") {
@@ -50,12 +48,7 @@ export default function ForgotPasswordPage() {
     setLoading(true)
 
     try {
-      await confirmResetPassword({
-        username: email,
-        confirmationCode: code,
-        newPassword,
-      })
-
+      await confirmForgotPassword(email, code, newPassword)
       router.push("/login")
     } catch (err) {
       if (err instanceof Error) {

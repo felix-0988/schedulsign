@@ -134,7 +134,7 @@ resource "aws_amplify_branch" "main" {
 
     # Cognito
     NEXT_PUBLIC_COGNITO_USER_POOL_ID     = aws_cognito_user_pool.main.id
-    NEXT_PUBLIC_COGNITO_CLIENT_ID        = aws_cognito_user_pool_client.main.id
+    NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID = aws_cognito_user_pool_client.main.id
     NEXT_PUBLIC_COGNITO_DOMAIN           = "https://${aws_cognito_user_pool_domain.main.domain}.auth.${var.aws_region}.amazoncognito.com"
     NEXT_PUBLIC_COGNITO_ISSUER           = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.main.id}"
 
