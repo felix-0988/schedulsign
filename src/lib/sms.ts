@@ -1,17 +1,19 @@
 import twilio from "twilio"
 
-// Use placeholder values during build if not set
-// The actual credentials will be provided at runtime
-// Twilio accountSid must start with "AC" followed by 32 hex characters
-const accountSid = process.env.TWILIO_ACCOUNT_SID || "AC00000000000000000000000000000000"
-const authToken = process.env.TWILIO_AUTH_TOKEN || "00000000000000000000000000000000"
+const PLACEHOLDER_SID = "AC00000000000000000000000000000000"
+const PLACEHOLDER_TOKEN = "00000000000000000000000000000000"
+
+// Only use real credentials if they look valid (start with "AC")
+const rawSid = process.env.TWILIO_ACCOUNT_SID || ""
+const accountSid = rawSid.startsWith("AC") ? rawSid : PLACEHOLDER_SID
+const authToken = rawSid.startsWith("AC") ? (process.env.TWILIO_AUTH_TOKEN || PLACEHOLDER_TOKEN) : PLACEHOLDER_TOKEN
 const twilioPhone = process.env.TWILIO_PHONE_NUMBER || "+10000000000"
 
 const twilioClient = twilio(accountSid, authToken)
 
 export async function sendSMS(to: string, message: string) {
   // Skip if using placeholder credentials
-  if (accountSid === "AC00000000000000000000000000000000") {
+  if (accountSid === PLACEHOLDER_SID) {
     console.log("Twilio not configured - skipping SMS:", { to, message })
     return
   }
