@@ -149,17 +149,20 @@ resource "aws_cognito_user_pool_client" "main" {
   # Callback URLs
   callback_urls = compact([
     var.domain_name != null ? "https://${var.domain_name}" : null,
-    var.domain_name != null ? "https://${var.domain_name}/api/auth/callback" : null,
+    var.domain_name != null ? "https://${var.domain_name}/api/auth/sign-in-callback" : null,
     "https://main.${aws_amplify_app.main.default_domain}",
-    "https://main.${aws_amplify_app.main.default_domain}/api/auth/callback",
+    "https://main.${aws_amplify_app.main.default_domain}/api/auth/sign-in-callback",
     "http://localhost:3000",
-    "http://localhost:3000/api/auth/callback",
+    "http://localhost:3000/api/auth/sign-in-callback",
   ])
 
   logout_urls = compact([
     var.domain_name != null ? "https://${var.domain_name}" : null,
+    var.domain_name != null ? "https://${var.domain_name}/api/auth/sign-out-callback" : null,
     "https://main.${aws_amplify_app.main.default_domain}",
+    "https://main.${aws_amplify_app.main.default_domain}/api/auth/sign-out-callback",
     "http://localhost:3000",
+    "http://localhost:3000/api/auth/sign-out-callback",
   ])
 
   # Token validity

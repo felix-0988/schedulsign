@@ -53,7 +53,9 @@ export async function resendVerificationCode(email: string) {
 }
 
 export async function signInWithGoogle() {
-  return amplifySignInWithRedirect({ provider: "Google" })
+  // Use server-side auth route handlers instead of client-side signInWithRedirect
+  // This avoids the known race condition with middleware (GitHub #13056)
+  window.location.assign("/api/auth/sign-in?provider=Google")
 }
 
 export async function logout() {

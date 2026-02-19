@@ -28,25 +28,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshUser = useCallback(async () => {
     try {
+      // Try client-side Amplify first (works for email/password sign-in)
       const authenticated = await authService.isAuthenticated()
       if (authenticated) {
         const userInfo = await authService.getCurrentUserInfo()
         setUser(userInfo)
-      } else {
-        setUser(null)
+        return
       }
     } catch {
-      setUser(null)
-    } finally {
-      setIsLoading(false)
+      // Client-side check failed, try server-side
     }
+
+    // Fallback: check via server API (works for server-side OAuth with HttpOnly cookies)
+    try {
+      const res = await fetch("/api/user")
+      if (res.ok) {
+        const data = await res.json()
+        if (data?.id) {
+          setUser({
+            userId: data.id,
+            email: data.email,
+            name: data.name || undefined,
+            emailVerified: true,
+          })
+          return
+        }
+      }
+    } catch {
+      // Server check also failed
+    }
+
+    setUser(null)
   }, [])
 
+  // Always clear loading state after refreshUser completes
   useEffect(() => {
-    refreshUser()
+    refreshUser().finally(() => setIsLoading(false))
   }, [refreshUser])
 
-  // Listen for OAuth redirect completion (Google sign-in)
+  // Listen for OAuth redirect completion (email/password sign-in)
   useEffect(() => {
     const unsubscribe = Hub.listen("auth", async ({ payload }) => {
       if (payload.event === "signInWithRedirect" || payload.event === "signedIn") {
@@ -114,8 +134,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const handleLogout = async () => {
-    await authService.logout()
+    try {
+      await authService.logout()
+    } catch {
+      // Client-side signOut may fail for server-side sessions
+    }
     setUser(null)
+    // Also clear server-side session (handles HttpOnly cookies from OAuth)
+    window.location.href = "/api/auth/sign-out"
   }
 
   return (

@@ -135,6 +135,9 @@ resource "aws_amplify_branch" "main" {
     # App URL (must match Cognito callback URLs)
     NEXT_PUBLIC_APP_URL = var.domain_name != null ? "https://${var.domain_name}" : "https://main.${aws_amplify_app.main.default_domain}"
 
+    # Required by @aws-amplify/adapter-nextjs createAuthRouteHandlers
+    AMPLIFY_APP_ORIGIN = var.domain_name != null ? "https://${var.domain_name}" : "https://main.${aws_amplify_app.main.default_domain}"
+
     # Cognito
     NEXT_PUBLIC_COGNITO_USER_POOL_ID     = aws_cognito_user_pool.main.id
     NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID = aws_cognito_user_pool_client.main.id
