@@ -54,49 +54,9 @@ function hasCognitoCookies(request: NextRequest): boolean {
   return !!idToken?.value
 }
 
-// Convert HttpOnly Cognito cookies to non-HttpOnly so the client SDK can read them.
-// createAuthRouteHandlers sets HttpOnly cookies after OAuth; the client SDK needs
-// non-HttpOnly cookies to avoid POST cognito-idp 400 errors.
-function convertCognitoCookies(request: NextRequest, response: NextResponse) {
-  const clientId = process.env.NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID
-  if (!clientId) return
-
-  // Only convert if we have Cognito cookies but no sentinel (already converted)
-  if (request.cookies.get("auth_cookies_converted")) return
-
-  const lastAuthUser = request.cookies.get(
-    `CognitoIdentityServiceProvider.${clientId}.LastAuthUser`
-  )
-  if (!lastAuthUser?.value) return
-
-  const isSecure = request.nextUrl.protocol === "https:"
-
-  for (const cookie of request.cookies.getAll()) {
-    if (cookie.name.startsWith(`CognitoIdentityServiceProvider.${clientId}.`)) {
-      response.cookies.set(cookie.name, cookie.value, {
-        httpOnly: false,
-        path: "/",
-        secure: isSecure,
-        sameSite: "lax",
-      })
-    }
-  }
-
-  // Sentinel cookie so we don't re-convert on every request
-  response.cookies.set("auth_cookies_converted", "1", {
-    httpOnly: false,
-    path: "/",
-    secure: isSecure,
-    sameSite: "lax",
-  })
-}
-
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next()
   const { pathname } = request.nextUrl
-
-  // Convert HttpOnly Cognito cookies to non-HttpOnly for the client SDK
-  convertCognitoCookies(request, response)
 
   if (isPublicRoute(pathname) || isPublicDynamicRoute(pathname)) {
     return response
