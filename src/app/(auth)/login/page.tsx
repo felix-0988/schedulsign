@@ -70,16 +70,16 @@ function LoginForm() {
   }
 
   async function handleGoogleSignIn() {
+    setError("")
     try {
       await loginWithGoogle()
-    } catch (err) {
-      if (err instanceof Error) {
-        if (err.message.includes("already a signed in user")) {
-          router.replace(redirect)
-          return
-        }
-        setError(err.message)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err)
+      if (message.includes("already a signed in user")) {
+        router.replace(redirect)
+        return
       }
+      setError(message)
     }
   }
 

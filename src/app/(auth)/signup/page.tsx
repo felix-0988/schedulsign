@@ -123,12 +123,12 @@ function SignUpForm() {
   }
 
   async function handleGoogleSignIn() {
+    setError("")
     try {
       await loginWithGoogle()
-    } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message)
-      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err)
+      setError(message)
     }
   }
 
