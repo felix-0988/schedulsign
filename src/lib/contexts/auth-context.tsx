@@ -1,6 +1,7 @@
 "use client"
 
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react"
+import { Hub } from "aws-amplify/utils"
 import * as authService from "@/lib/auth-service"
 import type { AuthUser } from "@/lib/auth-service"
 
@@ -43,6 +44,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     refreshUser()
+  }, [refreshUser])
+
+  // Listen for OAuth redirect completion (Google sign-in)
+  useEffect(() => {
+    const unsubscribe = Hub.listen("auth", async ({ payload }) => {
+      if (payload.event === "signInWithRedirect") {
+        await refreshUser()
+        window.location.href = "/dashboard"
+      }
+      if (payload.event === "signInWithRedirect_failure") {
+        console.error("OAuth sign-in failed:", payload.data)
+      }
+    })
+    return unsubscribe
   }, [refreshUser])
 
   const login = async (email: string, password: string) => {

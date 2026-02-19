@@ -16,7 +16,7 @@ export default function SignUpPage() {
 function SignUpForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { register, confirmRegistration, resendCode, login, loginWithGoogle } = useAuth()
+  const { register, confirmRegistration, resendCode, login, loginWithGoogle, isAuthenticated, isLoading: authLoading } = useAuth()
 
   const [step, setStep] = useState<"signup" | "confirm">("signup")
   const [email, setEmail] = useState("")
@@ -33,6 +33,13 @@ function SignUpForm() {
     if (emailParam) setEmail(emailParam)
     if (confirmParam === "true") setStep("confirm")
   }, [searchParams])
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      router.replace("/dashboard")
+    }
+  }, [authLoading, isAuthenticated, router])
 
   async function handleSignUp(e: React.FormEvent) {
     e.preventDefault()

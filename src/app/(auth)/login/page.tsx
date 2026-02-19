@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useState } from "react"
+import { Suspense, useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { useAuth } from "@/lib/contexts/auth-context"
@@ -17,12 +17,19 @@ function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirect = searchParams.get("redirect") || "/dashboard"
-  const { login, loginWithGoogle } = useAuth()
+  const { login, loginWithGoogle, isAuthenticated, isLoading: authLoading } = useAuth()
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      router.replace(redirect)
+    }
+  }, [authLoading, isAuthenticated, redirect, router])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
