@@ -47,6 +47,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     )
   }
 
+  if (!isAuthenticated) {
+    return null
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Top bar */}
