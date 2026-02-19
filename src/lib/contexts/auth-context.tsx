@@ -106,6 +106,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const loginWithGoogle = async () => {
+    // Clear stale HttpOnly cookies from the previous server-side auth approach
+    await fetch("/api/auth/clear-cookies")
     await authService.signInWithGoogle()
   }
 
@@ -137,11 +139,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await authService.logout()
     } catch {
-      // Client-side signOut may fail for server-side sessions
+      // Ignore errors during sign-out
     }
     setUser(null)
-    // Also clear server-side session (handles HttpOnly cookies from OAuth)
-    window.location.href = "/api/auth/sign-out"
   }
 
   return (

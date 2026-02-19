@@ -41,21 +41,11 @@ test.describe("Auth middleware - protected pages redirect to login", () => {
 })
 
 test.describe("Auth API routes", () => {
-  test("GET /api/auth/sign-in?provider=Google redirects to Cognito (not 500)", async ({ request }) => {
-    const response = await request.get("/api/auth/sign-in?provider=Google", {
-      maxRedirects: 0,
-    })
-    const status = response.status()
-    console.log(`  Status: ${status}`)
-    console.log(`  Location: ${response.headers()["location"] || "none"}`)
-
-    if (status >= 400) {
-      const body = await response.text()
-      console.log(`  Error body: ${body.substring(0, 500)}`)
-    }
-
-    // Should be a redirect to Cognito, NOT a 500
-    expect(status, "Should redirect to Cognito, not return error").toBeLessThan(400)
+  test("GET /api/auth/clear-cookies returns 200", async ({ request }) => {
+    const response = await request.get("/api/auth/clear-cookies")
+    expect(response.status()).toBe(200)
+    const body = await response.json()
+    expect(body.ok).toBe(true)
   })
 
   test("GET /api/event-types returns 401 when not authenticated", async ({ request }) => {
@@ -81,20 +71,19 @@ test.describe("Auth API routes", () => {
 })
 
 test.describe("Google OAuth flow - redirect chain", () => {
-  test("clicking Google button navigates to auth endpoint", async ({ page }) => {
+  test("clicking Google button navigates to Cognito", async ({ page }) => {
     await page.goto("/login")
 
-    // Click the Google button and wait for navigation
+    // Click the Google button — signInWithRedirect navigates directly to Cognito
     await page.click("text=Continue with Google")
 
-    // Should navigate away from login page (to /api/auth/sign-in then to Cognito)
+    // Should navigate away from login page (to Cognito authorize URL)
     await page.waitForURL((url) => !url.toString().includes("/login"), { timeout: 10000 })
 
     const finalUrl = page.url()
     console.log(`  Final URL: ${finalUrl}`)
 
-    // Should have reached Cognito or Google (not our error page)
-    expect(finalUrl).not.toContain("/api/auth/sign-in")
+    // Should have reached Cognito or Google (not an error page)
     expect(
       finalUrl.includes("amazoncognito.com") || finalUrl.includes("accounts.google.com"),
       `Expected Cognito or Google URL, got: ${finalUrl}`

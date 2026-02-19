@@ -53,9 +53,17 @@ export async function resendVerificationCode(email: string) {
 }
 
 export async function signInWithGoogle() {
-  // Use server-side auth route handlers instead of client-side signInWithRedirect
-  // This avoids the known race condition with middleware (GitHub #13056)
-  window.location.assign("/api/auth/sign-in?provider=Google")
+  // Clear stale non-HttpOnly Cognito cookies from a previous server-side auth session
+  document.cookie.split(";").forEach((c) => {
+    const name = c.trim().split("=")[0]
+    if (
+      name.startsWith("CognitoIdentityServiceProvider.") ||
+      name.startsWith("com.amplify.server_auth.")
+    ) {
+      document.cookie = `${name}=; Max-Age=0; path=/`
+    }
+  })
+  await amplifySignInWithRedirect({ provider: "Google" })
 }
 
 export async function logout() {
