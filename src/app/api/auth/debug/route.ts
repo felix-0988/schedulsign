@@ -3,6 +3,8 @@ import { cookies } from "next/headers"
 import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth/server"
 import { runWithAmplifyServerContext } from "@/lib/amplify-server-utils"
 
+export const dynamic = "force-dynamic"
+
 export async function GET() {
   const debug: Record<string, unknown> = {}
 

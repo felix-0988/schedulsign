@@ -7,19 +7,23 @@ const authHandler = createAuthRouteHandlers({
 })
 
 /**
- * Wrap the Amplify auth handler to strip HttpOnly from Cognito cookies.
+ * Wrap the Amplify auth handler to fix Cognito cookie attributes.
  *
  * createAuthRouteHandlers sets CognitoIdentityServiceProvider.* cookies as
- * HttpOnly. The client-side Amplify SDK (configured with ssr: true) reads
- * these same cookies from document.cookie and needs them to be non-HttpOnly.
- * If they're HttpOnly the SDK can't read them and calls cognito-idp with
- * missing/bad data → POST cognito-idp 400.
+ * HttpOnly with SameSite=strict. Two problems:
  *
- * We intercept the response and rewrite each Set-Cookie header to remove
- * the HttpOnly flag for Cognito cookies.
+ * 1. HttpOnly: The client-side Amplify SDK (ssr: true) needs to read these
+ *    cookies from document.cookie. HttpOnly prevents that.
+ *
+ * 2. SameSite=strict: After the OAuth redirect chain (Cognito → callback →
+ *    dashboard), fetch() calls from the dashboard page may not include
+ *    SameSite=strict cookies because the browser's "site for cookies" context
+ *    still considers it a cross-site flow. SameSite=lax fixes this.
+ *
+ * We intercept the response and rewrite Set-Cookie headers for Cognito cookies
+ * to remove HttpOnly and change SameSite from strict to lax.
  */
 export async function GET(request: NextRequest, context: { params: Promise<{ slug: string }> }) {
-  // createAuthRouteHandlers returns a handler function — call it
   const response = await (authHandler as (req: NextRequest, ctx: { params: Promise<{ slug: string }> }) => Promise<Response | undefined>)(request, context)
 
   if (!response) {
@@ -41,11 +45,15 @@ export async function GET(request: NextRequest, context: { params: Promise<{ slu
     }
   })
 
-  // Rewrite Set-Cookie headers: strip HttpOnly from Cognito cookies
+  // Rewrite Set-Cookie headers for Cognito cookies:
+  // - Remove HttpOnly (so client SDK can read from document.cookie)
+  // - Change SameSite=strict to SameSite=lax (so cookies are sent on
+  //   fetch() calls after the OAuth redirect chain)
   for (const cookieHeader of setCookieHeaders) {
     if (cookieHeader.includes("CognitoIdentityServiceProvider.")) {
-      // Remove HttpOnly flag (case-insensitive)
-      const modified = cookieHeader.replace(/;\s*httponly/gi, "")
+      const modified = cookieHeader
+        .replace(/;\s*httponly/gi, "")
+        .replace(/SameSite=strict/gi, "SameSite=lax")
       newHeaders.append("Set-Cookie", modified)
     } else {
       newHeaders.append("Set-Cookie", cookieHeader)

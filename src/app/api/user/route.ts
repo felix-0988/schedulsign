@@ -2,9 +2,11 @@ import { NextResponse } from "next/server"
 import { getAuthenticatedUser } from "@/lib/auth"
 import prisma from "@/lib/prisma"
 
+export const dynamic = "force-dynamic"
+
 export async function GET() {
   const user = await getAuthenticatedUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: { "Cache-Control": "no-store" } })
 
   // Return user with calendar connections
   const fullUser = await prisma.user.findUnique({
