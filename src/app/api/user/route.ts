@@ -1,12 +1,62 @@
 import { NextResponse } from "next/server"
 import { getAuthenticatedUser } from "@/lib/auth"
+import { cookies } from "next/headers"
+import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth/server"
+import { runWithAmplifyServerContext } from "@/lib/amplify-server-utils"
 import prisma from "@/lib/prisma"
 
 export const dynamic = "force-dynamic"
 
 export async function GET() {
   const user = await getAuthenticatedUser()
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: { "Cache-Control": "no-store" } })
+  if (!user) {
+    // Temporary debug: figure out WHY auth fails on fetch() but works on direct navigation
+    const debug: Record<string, unknown> = {}
+    try {
+      const cookieStore = await cookies()
+      const allCookies = cookieStore.getAll()
+      const clientId = process.env.NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID
+      debug.totalCookies = allCookies.length
+      debug.cognitoCookieNames = allCookies
+        .filter((c) => c.name.includes("Cognito"))
+        .map((c) => c.name)
+      debug.cognitoCookieCount = debug.cognitoCookieNames
+        ? (debug.cognitoCookieNames as string[]).length
+        : 0
+
+      if (clientId) {
+        const lastAuthUser = cookieStore.get(
+          `CognitoIdentityServiceProvider.${clientId}.LastAuthUser`
+        )
+        debug.lastAuthUser = lastAuthUser?.value || "NOT FOUND"
+      }
+
+      // Try Amplify getCurrentUser directly
+      try {
+        const cognitoUser = await runWithAmplifyServerContext({
+          nextServerContext: { cookies: () => cookieStore },
+          operation: (contextSpec) => getCurrentUser(contextSpec),
+        })
+        debug.getCurrentUser = { success: true, userId: cognitoUser.userId }
+
+        // Check Prisma lookup
+        const dbUser = await prisma.user.findUnique({
+          where: { cognitoId: cognitoUser.userId },
+          select: { id: true, email: true },
+        })
+        debug.prismaLookup = dbUser ? { found: true, id: dbUser.id } : { found: false }
+      } catch (e) {
+        debug.getCurrentUser = { success: false, error: String(e) }
+      }
+    } catch (e) {
+      debug.debugError = String(e)
+    }
+
+    return NextResponse.json(
+      { error: "Unauthorized", debug },
+      { status: 401, headers: { "Cache-Control": "no-store" } }
+    )
+  }
 
   // Return user with calendar connections
   const fullUser = await prisma.user.findUnique({
