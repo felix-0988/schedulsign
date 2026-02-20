@@ -1,8 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  env: {
-    AMPLIFY_APP_ORIGIN: process.env.AMPLIFY_APP_ORIGIN || process.env.NEXT_PUBLIC_APP_URL,
-  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "**" },

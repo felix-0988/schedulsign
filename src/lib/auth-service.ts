@@ -53,7 +53,15 @@ export async function resendVerificationCode(email: string) {
 }
 
 export async function signInWithGoogle() {
-  window.location.assign("/api/auth/sign-in?provider=Google")
+  // Clear stale non-HttpOnly Cognito cookies from document.cookie
+  // to prevent the client SDK from sending bad data to cognito-idp
+  document.cookie.split(";").forEach((c) => {
+    const name = c.trim().split("=")[0]
+    if (name.startsWith("CognitoIdentityServiceProvider.")) {
+      document.cookie = `${name}=; Max-Age=0; path=/`
+    }
+  })
+  await amplifySignInWithRedirect({ provider: "Google" })
 }
 
 export async function logout() {
