@@ -27,19 +27,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   const refreshUser = useCallback(async () => {
-    try {
-      // Try client-side Amplify first (works for email/password sign-in)
-      const authenticated = await authService.isAuthenticated()
-      if (authenticated) {
-        const userInfo = await authService.getCurrentUserInfo()
-        setUser(userInfo)
-        return
-      }
-    } catch {
-      // Client-side check failed, try server-side
-    }
-
-    // Fallback: check via server API (works for server-side OAuth with HttpOnly cookies)
+    // Check via server API first (works reliably for both OAuth and email/password).
+    // The client-side Amplify SDK can trigger POST cognito-idp 400 after OAuth
+    // which interferes with auth state, so we prefer the server-side check.
     try {
       const res = await fetch("/api/user")
       if (res.ok) {
@@ -55,7 +45,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
     } catch {
-      // Server check also failed
+      // Server check failed, try client-side
+    }
+
+    // Fallback: try client-side Amplify (works for email/password sign-in)
+    try {
+      const authenticated = await authService.isAuthenticated()
+      if (authenticated) {
+        const userInfo = await authService.getCurrentUserInfo()
+        if (userInfo) {
+          setUser(userInfo)
+          return
+        }
+      }
+    } catch {
+      // Client-side check also failed
     }
 
     setUser(null)
