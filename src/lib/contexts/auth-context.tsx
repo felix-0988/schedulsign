@@ -30,22 +30,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Check via server API first (works reliably for both OAuth and email/password).
     // The client-side Amplify SDK can trigger POST cognito-idp 400 after OAuth
     // which interferes with auth state, so we prefer the server-side check.
-    try {
-      const res = await fetch("/api/user")
-      if (res.ok) {
-        const data = await res.json()
-        if (data?.id) {
-          setUser({
-            userId: data.id,
-            email: data.email,
-            name: data.name || undefined,
-            emailVerified: true,
-          })
-          return
+    // Retry once on failure to handle Lambda cold starts where the Prisma
+    // query engine hasn't initialized yet ("fetch failed" error).
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await fetch("/api/user")
+        if (res.ok) {
+          const data = await res.json()
+          if (data?.id) {
+            setUser({
+              userId: data.id,
+              email: data.email,
+              name: data.name || undefined,
+              emailVerified: true,
+            })
+            return
+          }
         }
+      } catch {
+        // Server check failed
       }
-    } catch {
-      // Server check failed, try client-side
+      if (attempt === 0) {
+        await new Promise((r) => setTimeout(r, 1000))
+      }
     }
 
     // Fallback: try client-side Amplify (works for email/password sign-in)

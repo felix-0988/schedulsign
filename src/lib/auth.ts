@@ -12,9 +12,13 @@ export async function getAuthenticatedUser() {
       operation: (contextSpec) => getCurrentUser(contextSpec),
     })
 
-    let user = await prisma.user.findUnique({
-      where: { cognitoId: cognitoUser.userId },
-    })
+    // Retry Prisma calls once on failure (handles Lambda cold start where
+    // the query engine hasn't fully initialized yet: "fetch failed")
+    let user = await prismaWithRetry(() =>
+      prisma.user.findUnique({
+        where: { cognitoId: cognitoUser.userId },
+      })
+    )
 
     // Auto-provision: create DB record for first-time OAuth users
     if (!user) {
@@ -28,27 +32,33 @@ export async function getAuthenticatedUser() {
 
       if (email) {
         // Check if a user with this email already exists (e.g. signed up with password)
-        const existingUser = await prisma.user.findUnique({ where: { email } })
+        const existingUser = await prismaWithRetry(() =>
+          prisma.user.findUnique({ where: { email } })
+        )
 
         if (existingUser) {
           // Link existing user to this Cognito identity
-          user = await prisma.user.update({
-            where: { id: existingUser.id },
-            data: { cognitoId: cognitoUser.userId },
-          })
+          user = await prismaWithRetry(() =>
+            prisma.user.update({
+              where: { id: existingUser.id },
+              data: { cognitoId: cognitoUser.userId },
+            })
+          )
         } else {
           // Create new user from OAuth profile
           const name = idToken?.payload?.name as string | undefined
           const baseSlug = email.split("@")[0].replace(/[^a-z0-9]/gi, "").toLowerCase()
-          user = await prisma.user.create({
-            data: {
-              cognitoId: cognitoUser.userId,
-              email,
-              name: name || email.split("@")[0],
-              slug: baseSlug,
-              emailVerified: new Date(),
-            },
-          })
+          user = await prismaWithRetry(() =>
+            prisma.user.create({
+              data: {
+                cognitoId: cognitoUser.userId,
+                email,
+                name: name || email.split("@")[0],
+                slug: baseSlug,
+                emailVerified: new Date(),
+              },
+            })
+          )
         }
       }
     }
@@ -56,6 +66,17 @@ export async function getAuthenticatedUser() {
     return user || null
   } catch {
     return null
+  }
+}
+
+/** Retry a Prisma operation once after a short delay on failure. */
+async function prismaWithRetry<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn()
+  } catch {
+    // Wait for query engine to initialize, then retry
+    await new Promise((r) => setTimeout(r, 500))
+    return fn()
   }
 }
 
