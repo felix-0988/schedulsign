@@ -391,9 +391,10 @@ flowchart TD
 ```
 
 ### Key Design Decisions
-- Google OAuth handled via NextAuth integration
-- Outlook OAuth uses custom route (/api/auth/outlook)
-- Tokens stored encrypted in CalendarConnection model
+- Google Calendar OAuth uses custom route (`/api/auth/google`) for calendar-specific scopes
+- Outlook Calendar OAuth uses custom route (`/api/auth/outlook`)
+- User login OAuth (Google sign-in) is handled by AWS Cognito federated identity via Amplify `signInWithRedirect`
+- Calendar tokens stored in `CalendarConnection` model (separate from login auth)
 - Conflict checking queries connected calendars when generating available slots
 - Multiple calendars can be connected (one set as primary)
 

@@ -34,7 +34,7 @@ graph TD
     BOOK --> CANCEL[/cancel/:uid Cancel Booking]
     BOOK --> RESCHED[/reschedule/:uid Reschedule Booking]
 
-    %% Public Signing
+    %% Public Signing (PLANNED - not yet implemented)
     SIGN --> SIGNPAGE[/sign/:token Document Signing Page]
     SIGN --> SIGNDONE[/sign/:token/done Signing Complete]
 
@@ -44,17 +44,17 @@ graph TD
     DEVT --> DEVTD[/dashboard/event-types/:id Event Type Detail/Edit]
     DASH --> DBOOK[/dashboard/bookings Bookings List]
     DASH --> DAVAIL[/dashboard/availability Availability Config]
-    DASH --> DDOCS[/dashboard/documents Documents List]
-    DDOCS --> DDOCD[/dashboard/documents/:id Document Detail]
-    DDOCS --> DDOCP[/dashboard/documents/new/prepare Document Preparation]
-    DASH --> DTEMP[/dashboard/templates Templates List]
-    DTEMP --> DTEMPD[/dashboard/templates/:id Template Detail]
+    DASH --> DDOCS[/dashboard/documents Documents List - PLANNED]
+    DDOCS --> DDOCD[/dashboard/documents/:id Document Detail - PLANNED]
+    DDOCS --> DDOCP[/dashboard/documents/new/prepare Document Preparation - PLANNED]
+    DASH --> DTEMP[/dashboard/templates Templates List - PLANNED]
+    DTEMP --> DTEMPD[/dashboard/templates/:id Template Detail - PLANNED]
     DASH --> DCONT[/dashboard/contacts Contacts List]
     DASH --> DWEBH[/dashboard/webhooks Webhooks]
     DASH --> DSET[/dashboard/settings Settings]
 
     %% API Routes
-    API --> AAUTH[/api/auth/* NextAuth + Outlook OAuth]
+    API --> AAUTH[/api/auth/* Cognito + Calendar OAuth]
     API --> AEVT[/api/event-types Event Types CRUD]
     API --> ABOOK[/api/bookings Bookings CRUD]
     API --> ASLOTS[/api/slots Slot Availability]
@@ -64,8 +64,8 @@ graph TD
     API --> AUSER[/api/user User Profile]
     API --> ASTRIPE[/api/stripe/* Payments]
     API --> ACRON[/api/cron/reminders Reminders Cron]
-    API --> ADOCS[/api/documents Documents CRUD]
-    API --> ASIGN[/api/sign/* Signing Actions]
+    API --> ADOCS[/api/documents Documents CRUD - PLANNED]
+    API --> ASIGN[/api/sign/* Signing Actions - PLANNED]
     API --> AV1[/api/v1/* Public API]
 ```
 
@@ -150,7 +150,7 @@ On screens below `md` breakpoint:
 | Cancel Booking | `/cancel/:uid` | Cancel an existing booking | Booking details, cancel form |
 | Reschedule Booking | `/reschedule/:uid` | Reschedule an existing booking | Calendar, time slots (pre-filled info) |
 
-### 3.4 Public Signing Pages
+### 3.4 Public Signing Pages (PLANNED - not yet implemented)
 
 | Page | Route | Purpose | Key Components |
 |------|-------|---------|---------------|
@@ -166,11 +166,11 @@ On screens below `md` breakpoint:
 | Event Type Detail | `/dashboard/event-types/:id` | Edit event type settings | All settings tabs, custom questions, preview |
 | Bookings | `/dashboard/bookings` | View and manage bookings | Filter tabs, booking list, actions |
 | Availability | `/dashboard/availability` | Set weekly availability | Day toggles, time inputs, save |
-| Documents | `/dashboard/documents` | Manage sent documents | Filter tabs, document list, actions |
-| Document Detail | `/dashboard/documents/:id` | View document status and audit trail | PDF preview, recipient status, audit log |
-| Document Preparation | `/dashboard/documents/new/prepare` | Place fields on uploaded document | PDF viewer, field toolbar, recipient panel |
-| Templates | `/dashboard/templates` | Manage reusable templates | Template list, create, use |
-| Template Detail | `/dashboard/templates/:id` | View/edit template | PDF preview, field positions, roles |
+| Documents *(planned)* | `/dashboard/documents` | Manage sent documents | Filter tabs, document list, actions |
+| Document Detail *(planned)* | `/dashboard/documents/:id` | View document status and audit trail | PDF preview, recipient status, audit log |
+| Document Preparation *(planned)* | `/dashboard/documents/new/prepare` | Place fields on uploaded document | PDF viewer, field toolbar, recipient panel |
+| Templates *(planned)* | `/dashboard/templates` | Manage reusable templates | Template list, create, use |
+| Template Detail *(planned)* | `/dashboard/templates/:id` | View/edit template | PDF preview, field positions, roles |
 | Contacts | `/dashboard/contacts` | View contacts from bookings/signatures | Contact list, search, source filter |
 | Webhooks | `/dashboard/webhooks` | Manage webhook subscriptions | Webhook list, create, events selector |
 | Settings | `/dashboard/settings` | Profile, branding, billing, integrations | Profile form, calendar connections, subscription, embed |

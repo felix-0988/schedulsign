@@ -108,19 +108,18 @@ aws amplify get-app --app-id $(cat .amplify_app_id)
 
 **Update these variables in Amplify Console:**
 
-1. **NextAuth**
-   ```bash
-   NEXTAUTH_SECRET=$(openssl rand -base64 32)
-   ```
-   - Go to Amplify → Environment variables
-   - Update `NEXTAUTH_SECRET` with the generated value
+1. **Cognito (auto-provisioned by Terraform)**
+   - `NEXT_PUBLIC_COGNITO_USER_POOL_ID` - From Terraform output
+   - `NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID` - From Terraform output
+   - `NEXT_PUBLIC_COGNITO_DOMAIN` - From Terraform output
+   - `NEXT_PUBLIC_APP_URL` - Your Amplify app URL (e.g., `https://main.d1byq7m8hoa35v.amplifyapp.com`)
 
-2. **Google OAuth** (from Google Cloud Console)
-   - `GOOGLE_CLIENT_ID`
+2. **Google Calendar OAuth** (from Google Cloud Console)
+   - `GOOGLE_CLIENT_ID` - For calendar integration (separate from Cognito Google federated login)
    - `GOOGLE_CLIENT_SECRET`
 
 3. **Microsoft OAuth** (from Azure Portal)
-   - `MICROSOFT_CLIENT_ID`
+   - `MICROSOFT_CLIENT_ID` - For Outlook calendar integration
    - `MICROSOFT_CLIENT_SECRET`
 
 4. **Stripe** (from Stripe Dashboard)
@@ -340,10 +339,11 @@ npx prisma generate
 
 ### Runtime Errors
 
-**NextAuth Secret:**
+**Cognito Auth:**
 ```bash
-# Error: NEXTAUTH_SECRET missing
-# Fix: Update in Amplify environment variables
+# Error: Auth cookies not set / 401 after login
+# Fix: Verify NEXT_PUBLIC_COGNITO_* env vars in Amplify
+# Verify Cognito callback URLs include the Amplify app URL
 ```
 
 **Database Migrations:**
