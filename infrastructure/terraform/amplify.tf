@@ -92,6 +92,7 @@ resource "aws_amplify_branch" "main" {
 
     # Auth.js
     AUTH_SECRET          = var.auth_secret
+    AUTH_TRUST_HOST      = "true"
     NEXTAUTH_URL         = var.domain_name != null ? "https://${var.domain_name}" : "https://main.${aws_amplify_app.main.default_domain}"
     GOOGLE_CLIENT_ID     = var.google_oauth_client_id
     GOOGLE_CLIENT_SECRET = var.google_oauth_client_secret
