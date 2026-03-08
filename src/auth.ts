@@ -1,6 +1,7 @@
 import NextAuth from 'next-auth'
 import Google from 'next-auth/providers/google'
 import prisma from '@/lib/prisma'
+import { initDefaultAvailability } from '@/lib/availability'
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
@@ -38,6 +39,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               slug,
             },
           })
+
+          // Set up default Mon-Fri 9am-5pm availability
+          await initDefaultAvailability(user.id)
         }
         token.userId = user.id
       }
