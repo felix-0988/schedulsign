@@ -14,8 +14,10 @@ function isPublicRoute(pathname: string): boolean {
 function isPublicDynamicRoute(pathname: string): boolean {
   if (['/book/', '/cancel/', '/reschedule/'].some(p => pathname.startsWith(p))) return true
   const segments = pathname.split('/').filter(Boolean)
-  return segments.length === 1 &&
-    !['dashboard', 'api', 'login', '_next'].includes(segments[0])
+  const reserved = ['dashboard', 'api', 'login', '_next']
+  // /{slug} (user profile) or /{slug}/{event-type} (booking page)
+  return (segments.length === 1 || segments.length === 2) &&
+    !reserved.includes(segments[0])
 }
 
 export default auth((req: any) => {
