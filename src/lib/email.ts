@@ -1,14 +1,31 @@
-import nodemailer from "nodemailer"
+import { STSClient, AssumeRoleCommand } from "@aws-sdk/client-sts"
+import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses"
 
-const transporter = nodemailer.createTransport({
-  host: `email-smtp.${process.env.SES_REGION}.amazonaws.com`,
-  port: 465,
-  secure: true,
-  auth: {
-    user: process.env.SES_ACCESS_KEY,
-    pass: process.env.SES_SECRET_KEY,
-  },
-})
+const SES_ROLE_ARN = "arn:aws:iam::346871995105:role/OrganizationSESSendingRole"
+const SES_REGION = process.env.SES_REGION || "us-east-1"
+
+async function getSESClient(): Promise<SESClient> {
+  const sts = new STSClient({ region: SES_REGION })
+  const { Credentials } = await sts.send(
+    new AssumeRoleCommand({
+      RoleArn: SES_ROLE_ARN,
+      RoleSessionName: "schedulsign-ses",
+    })
+  )
+
+  if (!Credentials?.AccessKeyId || !Credentials?.SecretAccessKey) {
+    throw new Error("Failed to assume SES sending role")
+  }
+
+  return new SESClient({
+    region: SES_REGION,
+    credentials: {
+      accessKeyId: Credentials.AccessKeyId,
+      secretAccessKey: Credentials.SecretAccessKey,
+      sessionToken: Credentials.SessionToken,
+    },
+  })
+}
 
 interface EmailOptions {
   to: string
@@ -18,12 +35,17 @@ interface EmailOptions {
 
 export async function sendEmail({ to, subject, html }: EmailOptions) {
   try {
-    await transporter.sendMail({
-      from: `${process.env.NEXT_PUBLIC_APP_NAME} <${process.env.EMAIL_FROM}>`,
-      to,
-      subject,
-      html,
-    })
+    const ses = await getSESClient()
+    await ses.send(
+      new SendEmailCommand({
+        Source: `${process.env.NEXT_PUBLIC_APP_NAME || "SchedulSign"} <${process.env.EMAIL_FROM || "noreply@schedulsign.com"}>`,
+        Destination: { ToAddresses: [to] },
+        Message: {
+          Subject: { Data: subject },
+          Body: { Html: { Data: html } },
+        },
+      })
+    )
   } catch (error) {
     console.error("Failed to send email:", error)
     throw error

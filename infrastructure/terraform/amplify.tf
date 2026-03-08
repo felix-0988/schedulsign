@@ -21,6 +21,21 @@ resource "aws_iam_role" "amplify" {
   }
 }
 
+# Allow Amplify to assume the cross-account SES sending role
+resource "aws_iam_role_policy" "amplify_ses" {
+  name = "assume-ses-sending-role"
+  role = aws_iam_role.amplify.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "sts:AssumeRole"
+      Resource = "arn:aws:iam::346871995105:role/OrganizationSESSendingRole"
+    }]
+  })
+}
+
 # Amplify App
 resource "aws_amplify_app" "main" {
   name       = local.app_name
@@ -106,11 +121,9 @@ resource "aws_amplify_branch" "main" {
     STRIPE_PRO_MONTHLY_PRICE_ID = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
     STRIPE_PRO_YEARLY_PRICE_ID  = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
 
-    # SES
-    SES_REGION     = var.aws_region
-    SES_ACCESS_KEY = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
-    SES_SECRET_KEY = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
-    EMAIL_FROM     = "noreply@schedulsign.com"
+    # SES (uses STS role assumption, no static keys needed)
+    SES_REGION = var.aws_region
+    EMAIL_FROM = "noreply@schedulsign.com"
 
     # Twilio
     TWILIO_ACCOUNT_SID  = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
