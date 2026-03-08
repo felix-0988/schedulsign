@@ -21,9 +21,10 @@ function LoginForm() {
         <div className="bg-white rounded-lg shadow-sm border p-6">
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
-              {error === "Configuration"
-                ? "Server configuration error. Check AUTH_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and DATABASE_URL."
-                : `Authentication error: ${error}`}
+              <p className="font-medium">Authentication error: {error}</p>
+              <p className="mt-1 text-xs text-red-500 break-all">
+                Full URL: {typeof window !== 'undefined' ? window.location.href : ''}
+              </p>
             </div>
           )}
           <button

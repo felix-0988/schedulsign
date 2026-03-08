@@ -3,6 +3,7 @@ import Google from 'next-auth/providers/google'
 import prisma from '@/lib/prisma'
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -46,7 +47,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session
     },
   },
-  debug: process.env.NODE_ENV === 'production',
+  debug: true,
+  logger: {
+    error(code, ...message) {
+      console.error('[auth][error]', code, JSON.stringify(message))
+    },
+    warn(code, ...message) {
+      console.warn('[auth][warn]', code, ...message)
+    },
+    debug(code, ...message) {
+      console.log('[auth][debug]', code, ...message)
+    },
+  },
   pages: {
     signIn: '/login',
     error: '/login',

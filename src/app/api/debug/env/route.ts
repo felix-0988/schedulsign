@@ -22,5 +22,17 @@ export async function GET() {
     db = `ERROR: ${error instanceof Error ? error.message : String(error)}`
   }
 
-  return NextResponse.json({ ...env, database: db })
+  // Check if the Google OAuth well-known config is reachable
+  let googleDiscovery = "UNTESTED"
+  try {
+    const res = await fetch("https://accounts.google.com/.well-known/openid-configuration")
+    googleDiscovery = res.ok ? "OK" : `HTTP ${res.status}`
+  } catch (error) {
+    googleDiscovery = `ERROR: ${error instanceof Error ? error.message : String(error)}`
+  }
+
+  // Check GOOGLE_CLIENT_ID format
+  const clientIdValid = process.env.GOOGLE_CLIENT_ID?.endsWith(".apps.googleusercontent.com") ? "OK" : "INVALID FORMAT"
+
+  return NextResponse.json({ ...env, database: db, googleDiscovery, clientIdValid })
 }
