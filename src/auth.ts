@@ -33,7 +33,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             })
           }
           token.userId = user.id
-        } catch (error) {
+          ;(globalThis as any).__jwtCallbackResult = {
+            timestamp: new Date().toISOString(),
+            status: 'success',
+            userId: user.id,
+            email: profile.email,
+          }
+        } catch (error: any) {
+          ;(globalThis as any).__jwtCallbackResult = {
+            timestamp: new Date().toISOString(),
+            status: 'error',
+            errorMessage: error?.message ?? String(error),
+            errorName: error?.name,
+            errorCode: error?.code,
+            errorMeta: error?.meta ? JSON.stringify(error.meta) : undefined,
+            errorStack: error?.stack?.split('\n').slice(0, 5).join('\n'),
+          }
           console.error('[auth] JWT callback error:', error)
           throw error
         }

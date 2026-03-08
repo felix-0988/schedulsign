@@ -21,6 +21,9 @@ export async function GET() {
   // 4. Last callback error from route wrapper
   results.lastCallbackError = (globalThis as any).__lastCallbackError ?? "No callback error captured"
 
+  // 5. JWT callback result (success or detailed error)
+  results.jwtCallbackResult = (globalThis as any).__jwtCallbackResult ?? "No JWT callback executed yet"
+
   // 5. Google OIDC check
   try {
     const res = await fetch("https://accounts.google.com/.well-known/openid-configuration")
