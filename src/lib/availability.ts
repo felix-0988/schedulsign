@@ -42,8 +42,8 @@ export async function getAvailableSlots(options: AvailabilityOptions): Promise<T
       where: {
         userId,
         status: { in: ["CONFIRMED", "PENDING"] },
-        startTime: { gte: startDate },
-        endTime: { lte: endDate },
+        startTime: { lt: endDate },
+        endTime: { gt: startDate },
       },
       select: { startTime: true, endTime: true },
     }),

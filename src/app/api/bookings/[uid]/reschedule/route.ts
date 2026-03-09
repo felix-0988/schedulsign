@@ -37,10 +37,12 @@ export async function POST(req: Request, { params }: { params: { uid: string } }
   let meetingUrl = booking.meetingUrl || undefined
   let meetingId = booking.meetingId || undefined
 
+  let calendarError: string | undefined
   try {
     if (booking.meetingId) {
       // Update the existing event
       if (booking.eventType.location === "GOOGLE_MEET") {
+        console.log(`Reschedule: updating Google Calendar event ${booking.meetingId} for user ${booking.userId}`)
         const updated = await updateGoogleCalendarEvent(booking.userId, booking.meetingId, {
           startTime: start,
           endTime: end,
@@ -48,6 +50,25 @@ export async function POST(req: Request, { params }: { params: { uid: string } }
         if (updated) {
           meetingUrl = updated.meetingUrl || meetingUrl
           meetingId = updated.id || meetingId
+          console.log("Reschedule: Google Calendar event updated successfully")
+        } else {
+          // Update returned null — likely token expired or event not found
+          // Fall back to creating a new event
+          console.warn("Reschedule: Google Calendar update returned null, creating new event")
+          const calEvent = await createGoogleCalendarEvent(booking.userId, {
+            summary: `${booking.eventType.title} - ${booking.bookerName}`,
+            description: `Rescheduled via SchedulSign`,
+            startTime: start,
+            endTime: end,
+            attendees: [{ email: booking.bookerEmail }],
+            conferenceData: true,
+          })
+          if (calEvent) {
+            meetingUrl = calEvent.meetingUrl || meetingUrl
+            meetingId = calEvent.id || meetingId
+          } else {
+            calendarError = "Failed to update or create Google Calendar event"
+          }
         }
       } else if (booking.eventType.location !== "ZOOM") {
         // Outlook
@@ -88,6 +109,7 @@ export async function POST(req: Request, { params }: { params: { uid: string } }
     }
   } catch (e) {
     console.error("Calendar event update failed during reschedule:", e)
+    calendarError = String(e)
   }
 
   // Update the booking in-place (keep same uid so reschedule/cancel links still work)
@@ -153,5 +175,8 @@ export async function POST(req: Request, { params }: { params: { uid: string } }
 
   await triggerWebhooks(booking.userId, "booking.rescheduled", { old: booking, new: updatedBooking })
 
-  return NextResponse.json(updatedBooking)
+  return NextResponse.json({
+    ...updatedBooking,
+    ...(calendarError && { calendarWarning: "Booking time updated but calendar invite may not have been updated" }),
+  })
 }

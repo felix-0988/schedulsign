@@ -15,6 +15,8 @@ export default function ReschedulePage() {
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
   const [booking, setBooking] = useState<any>(null)
   const [done, setDone] = useState(false)
+  const [calendarWarning, setCalendarWarning] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const timezone = typeof window !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC"
 
@@ -35,12 +37,20 @@ export default function ReschedulePage() {
   async function handleReschedule() {
     if (!selectedSlot) return
     setLoading(true)
+    setError(null)
     const res = await fetch(`/api/bookings/${uid}/reschedule`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ newStartTime: selectedSlot }),
     })
-    if (res.ok) setDone(true)
+    if (res.ok) {
+      const data = await res.json()
+      if (data.calendarWarning) setCalendarWarning(true)
+      setDone(true)
+    } else {
+      const data = await res.json().catch(() => ({}))
+      setError(data.error || "Failed to reschedule. Please try again.")
+    }
     setLoading(false)
   }
 
@@ -53,6 +63,11 @@ export default function ReschedulePage() {
           </div>
           <h1 className="text-2xl font-bold mb-2">Rescheduled!</h1>
           <p className="text-gray-600">Your booking has been rescheduled. A confirmation email is on its way.</p>
+          {calendarWarning && (
+            <p className="mt-3 text-sm text-amber-600 bg-amber-50 rounded-lg p-3">
+              Note: The calendar invite may not have been updated automatically. Please check your calendar.
+            </p>
+          )}
         </div>
       </div>
     )
@@ -117,6 +132,10 @@ export default function ReschedulePage() {
               })}
             </div>
           </div>
+        )}
+
+        {error && (
+          <p className="mt-4 text-sm text-red-600 bg-red-50 rounded-lg p-3">{error}</p>
         )}
 
         {selectedSlot && (
