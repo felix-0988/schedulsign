@@ -1,31 +1,5 @@
-import { STSClient, AssumeRoleCommand } from "@aws-sdk/client-sts"
-import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses"
-
-const SES_ROLE_ARN = "arn:aws:iam::346871995105:role/OrganizationSESSendingRole"
-const SES_REGION = process.env.SES_REGION || "us-east-1"
-
-async function getSESClient(): Promise<SESClient> {
-  const sts = new STSClient({ region: SES_REGION })
-  const { Credentials } = await sts.send(
-    new AssumeRoleCommand({
-      RoleArn: SES_ROLE_ARN,
-      RoleSessionName: "schedulsign-ses",
-    })
-  )
-
-  if (!Credentials?.AccessKeyId || !Credentials?.SecretAccessKey) {
-    throw new Error("Failed to assume SES sending role")
-  }
-
-  return new SESClient({
-    region: SES_REGION,
-    credentials: {
-      accessKeyId: Credentials.AccessKeyId,
-      secretAccessKey: Credentials.SecretAccessKey,
-      sessionToken: Credentials.SessionToken,
-    },
-  })
-}
+const EMAIL_SENDER_URL = process.env.EMAIL_SENDER_URL
+const EMAIL_SENDER_API_KEY = process.env.EMAIL_SENDER_API_KEY
 
 interface EmailOptions {
   to: string
@@ -34,21 +8,24 @@ interface EmailOptions {
 }
 
 export async function sendEmail({ to, subject, html }: EmailOptions) {
-  try {
-    const ses = await getSESClient()
-    await ses.send(
-      new SendEmailCommand({
-        Source: `${process.env.NEXT_PUBLIC_APP_NAME || "SchedulSign"} <${process.env.EMAIL_FROM || "noreply@schedulsign.com"}>`,
-        Destination: { ToAddresses: [to] },
-        Message: {
-          Subject: { Data: subject },
-          Body: { Html: { Data: html } },
-        },
-      })
-    )
-  } catch (error) {
-    console.error("Failed to send email:", error)
-    throw error
+  if (!EMAIL_SENDER_URL) {
+    console.warn("EMAIL_SENDER_URL not set, skipping email send")
+    return
+  }
+
+  const response = await fetch(EMAIL_SENDER_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(EMAIL_SENDER_API_KEY && { "X-Api-Key": EMAIL_SENDER_API_KEY }),
+    },
+    body: JSON.stringify({ to, subject, html }),
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    console.error("Email send failed:", response.status, error)
+    throw new Error(`Email send failed: ${response.status} ${error}`)
   }
 }
 

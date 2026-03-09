@@ -48,3 +48,4 @@ next-env.d.ts
 .terraform/
 terraform.tfvars
 
+infrastructure/terraform/lambda/email-sender.zip
