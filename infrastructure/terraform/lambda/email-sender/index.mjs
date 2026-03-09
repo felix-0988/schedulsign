@@ -33,7 +33,16 @@ export const handler = async (event) => {
     return { statusCode: 403, body: JSON.stringify({ error: "Forbidden" }) };
   }
 
-  const body = JSON.parse(event.body || "{}");
+  let rawBody = event.body || "{}";
+  if (event.isBase64Encoded && typeof rawBody === "string") {
+    rawBody = Buffer.from(rawBody, "base64").toString("utf-8");
+  }
+  let body;
+  try {
+    body = typeof rawBody === "string" ? JSON.parse(rawBody) : rawBody;
+  } catch {
+    return { statusCode: 400, body: JSON.stringify({ error: "Invalid JSON body" }) };
+  }
   const { to, subject, html } = body;
 
   if (!to || !subject || !html) {

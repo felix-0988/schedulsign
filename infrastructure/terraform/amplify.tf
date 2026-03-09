@@ -60,7 +60,7 @@ resource "aws_amplify_app" "main" {
           commands:
             - npm ci
             - npx prisma generate
-            - env | grep -E '^(DATABASE_URL|AUTH_SECRET|AUTH_TRUST_HOST|AUTH_URL|NEXTAUTH_URL|GOOGLE_CLIENT_ID|GOOGLE_CLIENT_SECRET|NEXT_PUBLIC_)' > .env.production
+            - env | grep -E '^(DATABASE_URL|AUTH_SECRET|AUTH_TRUST_HOST|AUTH_URL|NEXTAUTH_URL|GOOGLE_CLIENT_ID|GOOGLE_CLIENT_SECRET|EMAIL_SENDER_|STRIPE_|NEXT_PUBLIC_)' > .env.production
         build:
           commands:
             - npm run build
@@ -130,9 +130,9 @@ resource "aws_amplify_branch" "main" {
     STRIPE_PRO_MONTHLY_PRICE_ID = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
     STRIPE_PRO_YEARLY_PRICE_ID  = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"
 
-    # SES (uses STS role assumption, no static keys needed)
-    SES_REGION = var.aws_region
-    EMAIL_FROM = "noreply@schedulsign.com"
+    # Email sender Lambda (via API Gateway)
+    EMAIL_SENDER_URL     = aws_apigatewayv2_stage.email_sender.invoke_url
+    EMAIL_SENDER_API_KEY = random_password.email_api_key.result
 
     # Twilio
     TWILIO_ACCOUNT_SID  = "_PLACEHOLDER_MANAGED_IN_AMPLIFY_CONSOLE_"

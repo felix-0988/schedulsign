@@ -3,6 +3,8 @@
 # Dedicated Lambda for sending emails via cross-account SES role assumption.
 # Amplify Hosting SSR doesn't provide IAM credentials at runtime,
 # so we use a separate Lambda with its own execution role.
+# Uses API Gateway (not function URL) because AWS Organizations SCP blocks
+# public Lambda function URLs.
 
 resource "random_password" "email_api_key" {
   length  = 32
@@ -75,16 +77,43 @@ resource "aws_lambda_function" "email_sender" {
   }
 }
 
-# Function URL (public HTTPS endpoint, secured by API key)
-resource "aws_lambda_function_url" "email_sender" {
-  function_name      = aws_lambda_function.email_sender.function_name
-  authorization_type = "NONE"
+# API Gateway (HTTP API) for the email sender
+resource "aws_apigatewayv2_api" "email_sender" {
+  name          = "${local.app_name}-email-sender"
+  protocol_type = "HTTP"
 }
 
-# Output the function URL and API key
+resource "aws_apigatewayv2_stage" "email_sender" {
+  api_id      = aws_apigatewayv2_api.email_sender.id
+  name        = "$default"
+  auto_deploy = true
+}
+
+resource "aws_apigatewayv2_integration" "email_sender" {
+  api_id                 = aws_apigatewayv2_api.email_sender.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.email_sender.invoke_arn
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_route" "email_sender" {
+  api_id    = aws_apigatewayv2_api.email_sender.id
+  route_key = "POST /"
+  target    = "integrations/${aws_apigatewayv2_integration.email_sender.id}"
+}
+
+resource "aws_lambda_permission" "email_sender_apigw" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.email_sender.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.email_sender.execution_arn}/*/*"
+}
+
+# Output the API Gateway URL and API key
 output "email_sender_url" {
-  description = "Email sender Lambda function URL"
-  value       = aws_lambda_function_url.email_sender.function_url
+  description = "Email sender API Gateway URL"
+  value       = aws_apigatewayv2_stage.email_sender.invoke_url
 }
 
 output "email_sender_api_key" {
