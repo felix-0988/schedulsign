@@ -131,6 +131,29 @@ export async function POST(req: Request) {
       console.error("Email send failed:", e)
     }
 
+    // Email to host
+    try {
+      if (eventType.user.email) {
+        await sendEmail({
+          to: eventType.user.email,
+          subject: `New booking: ${eventType.title} with ${bookerName}`,
+          html: bookingConfirmationEmail({
+            bookerName: eventType.user.name || "Host",
+            hostName: bookerName,
+            eventTitle: eventType.title,
+            dateTime: dateTimeStr,
+            timezone: bookerTimezone,
+            location: eventType.location,
+            meetingUrl,
+            rescheduleUrl: `${appUrl}/reschedule/${booking.uid}`,
+            cancelUrl: `${appUrl}/cancel/${booking.uid}`,
+          }),
+        })
+      }
+    } catch (e) {
+      console.error("Host email send failed:", e)
+    }
+
     // Trigger webhooks
     await triggerWebhooks(eventType.userId, "booking.created", booking)
 
