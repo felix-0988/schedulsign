@@ -1,17 +1,19 @@
 import { defineConfig } from "@playwright/test"
 
-const BASE_URL = process.env.BASE_URL || "https://main.d1byq7m8hoa35v.amplifyapp.com"
+const BASE_URL = process.env.BASE_URL || "https://main.d3qg4jj8hqacaa.amplifyapp.com"
 
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: 0,
+  retries: process.env.CI ? 1 : 0,
   workers: 1,
-  reporter: "list",
+  reporter: process.env.CI ? "github" : "list",
+  timeout: 30_000,
   use: {
     baseURL: BASE_URL,
     trace: "on-first-retry",
+    screenshot: "only-on-failure",
   },
   projects: [
     {
