@@ -59,7 +59,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <Menu className="w-5 h-5" />
         </button>
         <Link href="/dashboard" className="text-lg font-bold text-blue-600">
-          Schedul<span className="text-gray-900">Sign</span>
+          Tiny<span className="text-gray-900">Cal</span>
         </Link>
         <div className="ml-auto flex items-center gap-4">
           <span className="text-sm text-gray-600 hidden sm:inline">{user?.email}</span>
@@ -86,7 +86,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       >
         <div className="flex items-center justify-between h-14 px-4 border-b">
           <span className="text-lg font-bold text-blue-600">
-            Schedul<span className="text-gray-900">Sign</span>
+            Tiny<span className="text-gray-900">Cal</span>
           </span>
           <button
             onClick={() => setMobileMenuOpen(false)}

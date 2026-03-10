@@ -13,7 +13,7 @@ function LoginForm() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-blue-600 mb-2">
-            Schedul<span className="text-gray-900">Sign</span>
+            Tiny<span className="text-gray-900">Cal</span>
           </h1>
           <p className="text-gray-600">Welcome back</p>
         </div>
