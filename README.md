@@ -121,9 +121,9 @@ SchedulSign deploys on AWS Amplify with Neon serverless PostgreSQL:
 **Account Structure:**
 | Environment | Deploy Trigger | Account |
 |-------------|----------------|---------|
-| Dev | Push to `main` | SchedulSign-Dev |
-| QA | Tag `v*-qa` | SchedulSign-QA |
-| Prod | Tag `v*` | SchedulSign-Prod |
+| Dev | Push to `main` | TinyCal-Dev |
+| QA | Tag `v*-qa` | TinyCal-QA |
+| Prod | Tag `v*` | TinyCal-Prod |
 
 ### Local Development with Docker
 
