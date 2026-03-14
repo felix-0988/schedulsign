@@ -3,21 +3,63 @@ import { getAuthenticatedUser } from "@/lib/auth"
 
 const TINYDESK_URL = process.env.TINYDESK_URL || "https://tinydesk.zenithstudio.app"
 
+const MAX_FILES = 3
+const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB per file
+const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"]
+
 export async function POST(req: Request) {
   const user = await getAuthenticatedUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { subject, message, category } = await req.json()
+  const formData = await req.formData()
+  const subject = formData.get("subject") as string
+  const message = formData.get("message") as string
+  const category = formData.get("category") as string
 
   if (!subject?.trim() || !message?.trim()) {
     return NextResponse.json({ error: "Subject and message are required" }, { status: 400 })
   }
 
-  const body = category
-    ? `[${category}]\n\n${message}`
-    : message
+  // Collect and validate files
+  const files: File[] = []
+  for (let i = 0; i < MAX_FILES; i++) {
+    const file = formData.get(`file${i}`) as File | null
+    if (!file) continue
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json({ error: `File "${file.name}" exceeds 5MB limit` }, { status: 400 })
+    }
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      return NextResponse.json({ error: `File "${file.name}" is not a supported image type` }, { status: 400 })
+    }
+    files.push(file)
+  }
 
   try {
+    // Upload screenshots to TinyDesk if any
+    let screenshots: string[] | undefined
+    if (files.length > 0) {
+      const uploadForm = new FormData()
+      files.forEach((f) => uploadForm.append("files", f))
+
+      const uploadRes = await fetch(`${TINYDESK_URL}/api/tickets/upload`, {
+        method: "POST",
+        body: uploadForm,
+      })
+
+      if (!uploadRes.ok) {
+        console.error("TinyDesk screenshot upload failed:", uploadRes.status)
+        return NextResponse.json({ error: "Failed to upload screenshots" }, { status: 502 })
+      }
+
+      const uploadData = await uploadRes.json()
+      screenshots = uploadData.urls
+    }
+
+    // Create ticket
+    const body = category
+      ? `[${category}]\n\n${message}`
+      : message
+
     const res = await fetch(`${TINYDESK_URL}/api/tickets`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -27,6 +69,7 @@ export async function POST(req: Request) {
         submitterName: user.name || undefined,
         subject,
         body,
+        screenshots,
       }),
     })
 
